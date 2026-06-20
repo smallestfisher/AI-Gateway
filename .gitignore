@@ -1,0 +1,23 @@
+# Build artifacts
+/tmp/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/gateway
+/bin/
+
+# Go test / coverage
+*.test
+*.out
+coverage.txt
+
+# Local env
+.env
+.env.local
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
