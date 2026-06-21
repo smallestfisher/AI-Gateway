@@ -23,6 +23,7 @@ import (
 	"github.com/aigateway/ai-hub/internal/config"
 	"github.com/aigateway/ai-hub/internal/egress"
 	"github.com/aigateway/ai-hub/internal/health"
+	"github.com/aigateway/ai-hub/internal/logging"
 	"github.com/aigateway/ai-hub/internal/pipeline"
 	"github.com/aigateway/ai-hub/internal/registry"
 	"github.com/aigateway/ai-hub/internal/registrydb"
@@ -48,10 +49,20 @@ func main() {
 	eg.SetRecorder(recorder) // records TTFT/latency/success for circuit-breaking
 	pipe := pipeline.New(rt, eg)
 
+	// Request logger (writes to request_logs table).
+	var logger *logging.Logger
+	if pool != nil {
+		logger = logging.NewLogger(pool)
+		log.Info("request logging enabled")
+	} else {
+		log.Warn("request logging disabled (no database)")
+	}
+
 	app := server.New(&cfg, log, server.Deps{
 		Registry: registryHub,
 		Pipeline: pipe,
 		Auth:     buildAuth(pool, rdb),
+		Logger:   logger,
 	})
 
 	// Admin API (config CRUD + hot-reload trigger).

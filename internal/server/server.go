@@ -18,6 +18,7 @@ import (
 	"github.com/aigateway/ai-hub/internal/config"
 	"github.com/aigateway/ai-hub/internal/egress"
 	"github.com/aigateway/ai-hub/internal/ir"
+	"github.com/aigateway/ai-hub/internal/logging"
 	"github.com/aigateway/ai-hub/internal/pipeline"
 	"github.com/aigateway/ai-hub/internal/router"
 
@@ -29,6 +30,7 @@ type Deps struct {
 	Registry *adapter.Registry
 	Pipeline *pipeline.Pipeline
 	Auth     *AuthDeps // nil = auth disabled (dev)
+	Logger   *logging.Logger // nil = logging disabled
 }
 
 // AuthDeps bundles the proxy auth controls.
@@ -94,9 +96,9 @@ func proxyHandler(deps Deps, log *slog.Logger) fiber.Handler {
 		}
 
 		if ireq.Stream {
-			return handleStream(c, deps.Pipeline, ingress, ireq, deps.Auth, log)
+			return handleStream(c, deps.Pipeline, ingress, ireq, deps.Auth, deps.Logger, log)
 		}
-		return handleUnary(c, deps.Pipeline, ingress, ireq, deps.Auth, log)
+		return handleUnary(c, deps.Pipeline, ingress, ireq, deps.Auth, deps.Logger, log)
 	}
 }
 
@@ -158,23 +160,62 @@ func itoa(n int) string {
 	return string(b[i:])
 }
 
-func handleUnary(c *fiber.Ctx, p *pipeline.Pipeline, ingress adapter.Adapter, ireq *ir.UnifiedRequest, a *AuthDeps, log *slog.Logger) error {
+func handleUnary(c *fiber.Ctx, p *pipeline.Pipeline, ingress adapter.Adapter, ireq *ir.UnifiedRequest, a *AuthDeps, logger *logging.Logger, log *slog.Logger) error {
+	start := time.Now()
 	ctx, cancel := context.WithCancel(c.UserContext())
 	defer cancel()
+
 	resp, err := p.Run(ctx, ireq)
+	latency := int(time.Since(start).Milliseconds())
+
+	// Log the request
+	logEntry := logging.RequestLog{
+		RequestID:  ireq.ID,
+		Protocol:   ingress.Protocol(),
+		Model:      ireq.Model,
+		Stream:     false,
+		LatencyMs:  latency,
+		Timestamp:  start,
+	}
+	if ireq.Client != nil {
+		logEntry.UserID = ireq.Client.UserID
+		logEntry.APIKeyID = ireq.Client.APIKeyID
+	}
+
 	if err != nil {
 		log.Warn("pipeline run failed", "request_id", ireq.ID, "model", ireq.Model, "err", err)
 		status := http.StatusBadGateway
 		code := "upstream_error"
+		logEntry.Status = "error"
 		if errors.Is(err, router.ErrNoChannel) {
 			status = http.StatusNotFound
 			code = "model_not_found"
+			logEntry.Status = "no_channel"
 		} else if egress.IsRetryable(err) {
 			status = http.StatusServiceUnavailable
 			code = "no_available_channel"
+			logEntry.Status = "no_available_channel"
+		}
+		logEntry.HTTPStatus = status
+		logEntry.ErrorCode = code
+		logEntry.ErrorMsg = err.Error()
+		if logger != nil {
+			logger.Log(ctx, logEntry)
 		}
 		return writeProtoError(c, ingress.Protocol(), code, err.Error(), status)
 	}
+
+	// Success case
+	logEntry.Status = "success"
+	logEntry.HTTPStatus = http.StatusOK
+	logEntry.ProviderID = resp.ProviderID
+	logEntry.UpstreamModel = resp.UpstreamModel
+	logEntry.StopReason = string(resp.StopReason)
+	logEntry.Usage = &resp.Usage
+	if logger != nil {
+		logger.Log(ctx, logEntry)
+	}
+
 	deduct(c.UserContext(), a, ireq.Client, resp.Usage)
 	body, err := ingress.EncodeResponse(resp)
 	if err != nil {
@@ -185,11 +226,12 @@ func handleUnary(c *fiber.Ctx, p *pipeline.Pipeline, ingress adapter.Adapter, ir
 	return c.Send(body)
 }
 
-func handleStream(c *fiber.Ctx, p *pipeline.Pipeline, ingress adapter.Adapter, ireq *ir.UnifiedRequest, a *AuthDeps, log *slog.Logger) error {
+func handleStream(c *fiber.Ctx, p *pipeline.Pipeline, ingress adapter.Adapter, ireq *ir.UnifiedRequest, a *AuthDeps, logger *logging.Logger, log *slog.Logger) error {
 	type evMsg struct {
 		ev  ir.StreamEvent
 		end bool
 	}
+	start := time.Now()
 	ctx, cancel := context.WithCancel(c.UserContext())
 	ch := make(chan evMsg, 32)
 
@@ -203,6 +245,27 @@ func handleStream(c *fiber.Ctx, p *pipeline.Pipeline, ingress adapter.Adapter, i
 	first := <-ch
 	if first.end {
 		cancel()
+		latency := int(time.Since(start).Milliseconds())
+		// Log failure
+		logEntry := logging.RequestLog{
+			RequestID:  ireq.ID,
+			Protocol:   ingress.Protocol(),
+			Model:      ireq.Model,
+			Stream:     true,
+			Status:     "no_available_channel",
+			HTTPStatus: http.StatusServiceUnavailable,
+			LatencyMs:  latency,
+			ErrorCode:  "no_available_channel",
+			ErrorMsg:   "no upstream could start the stream",
+			Timestamp:  start,
+		}
+		if ireq.Client != nil {
+			logEntry.UserID = ireq.Client.UserID
+			logEntry.APIKeyID = ireq.Client.APIKeyID
+		}
+		if logger != nil {
+			logger.Log(ctx, logEntry)
+		}
 		// no event emitted: total routing/upstream failure before first byte
 		return writeProtoError(c, ingress.Protocol(), "no_available_channel",
 			"no upstream could start the stream", http.StatusServiceUnavailable)
@@ -218,6 +281,11 @@ func handleStream(c *fiber.Ctx, p *pipeline.Pipeline, ingress adapter.Adapter, i
 	firstBytes, _ := enc.Encode(first.ev)
 	client := ireq.Client
 
+	// Track TTFT and metadata for logging
+	var ttftMs int
+	var stopReason ir.StopReason
+	ttftRecorded := false
+
 	// fasthttp's StreamWriter (func(w *bufio.Writer)) runs once in a goroutine
 	// and must stream the whole body, flushing as it goes.
 	c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
@@ -228,7 +296,17 @@ func handleStream(c *fiber.Ctx, p *pipeline.Pipeline, ingress adapter.Adapter, i
 				usage = ev.Usage
 			}
 		}
+		captureMetadata := func(ev ir.StreamEvent) {
+			if !ttftRecorded && ev.Type != ir.EvError {
+				ttftMs = int(time.Since(start).Milliseconds())
+				ttftRecorded = true
+			}
+			if ev.StopReason != "" {
+				stopReason = ev.StopReason
+			}
+		}
 		captureUsage(first.ev)
+		captureMetadata(first.ev)
 		if len(firstBytes) > 0 {
 			if _, err := w.Write(firstBytes); err != nil {
 				return
@@ -239,14 +317,59 @@ func handleStream(c *fiber.Ctx, p *pipeline.Pipeline, ingress adapter.Adapter, i
 		for {
 			msg, ok := <-ch
 			if !ok || msg.end {
+				// Log successful stream completion
+				latency := int(time.Since(start).Milliseconds())
+				logEntry := logging.RequestLog{
+					RequestID:  ireq.ID,
+					Protocol:   ingress.Protocol(),
+					Model:      ireq.Model,
+					Stream:     true,
+					Status:     "success",
+					HTTPStatus: http.StatusOK,
+					StopReason: string(stopReason),
+					TTFTMs:     ttftMs,
+					LatencyMs:  latency,
+					Usage:      usage,
+					Timestamp:  start,
+				}
+				if ireq.Client != nil {
+					logEntry.UserID = client.UserID
+					logEntry.APIKeyID = client.APIKeyID
+				}
+				if logger != nil {
+					logger.Log(ctx, logEntry)
+				}
 				if usage != nil {
 					deduct(ctx, a, client, *usage)
 				}
 				return
 			}
 			captureUsage(msg.ev)
+			captureMetadata(msg.ev)
 			b, _ := enc.Encode(msg.ev)
 			if _, err := w.Write(b); err != nil {
+				// Client disconnected — still log what we got
+				latency := int(time.Since(start).Milliseconds())
+				logEntry := logging.RequestLog{
+					RequestID:  ireq.ID,
+					Protocol:   ingress.Protocol(),
+					Model:      ireq.Model,
+					Stream:     true,
+					Status:     "client_disconnect",
+					HTTPStatus: http.StatusOK,
+					StopReason: string(stopReason),
+					TTFTMs:     ttftMs,
+					LatencyMs:  latency,
+					Usage:      usage,
+					Timestamp:  start,
+				}
+				if ireq.Client != nil {
+					logEntry.UserID = client.UserID
+					logEntry.APIKeyID = client.APIKeyID
+				}
+				if logger != nil {
+					logger.Log(ctx, logEntry)
+				}
 				if usage != nil {
 					deduct(ctx, a, client, *usage)
 				}
