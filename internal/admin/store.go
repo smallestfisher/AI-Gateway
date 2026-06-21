@@ -132,6 +132,31 @@ type RouterPolicy struct {
 	Enabled bool          `json:"enabled"`
 }
 
+// User is the admin view of a user.
+type User struct {
+	ID        string  `json:"id,omitempty"`
+	Name      string  `json:"name"`
+	Email     string  `json:"email,omitempty"`
+	Status    string  `json:"status"` // active | disabled
+	Balance   int64   `json:"balance"`
+	RPM       int     `json:"rpm,omitempty"`
+	TPM       int     `json:"tpm,omitempty"`
+	Whitelist []string `json:"whitelist,omitempty"`
+	CreatedAt string  `json:"created_at,omitempty"`
+	UpdatedAt string  `json:"updated_at,omitempty"`
+}
+
+// APIKey is the admin view of an API key.
+type APIKey struct {
+	ID         string  `json:"id,omitempty"`
+	UserID     string  `json:"user_id"`
+	Name       string  `json:"name"`
+	KeyPrefix  string  `json:"key_prefix"`
+	Status     string  `json:"status"` // active | revoked
+	LastUsedAt *string `json:"last_used_at,omitempty"`
+	CreatedAt  string  `json:"created_at,omitempty"`
+}
+
 // ---------------------------------------------------------------------------
 // Providers
 // ---------------------------------------------------------------------------
@@ -465,6 +490,82 @@ func (s *Store) SetQuota(ctx context.Context, userID string, balance int64, rpm,
 				model_whitelist=EXCLUDED.model_whitelist, updated_at=now()`,
 			userID, balance, intPtr(rpm), intPtr(tpm), wl)
 		return err
+	})
+}
+
+// ListUsers returns all users with their quota information.
+func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT u.id, u.name, COALESCE(u.email,''), u.status, u.created_at, u.updated_at,
+		       COALESCE(q.balance, 0), COALESCE(q.rpm_limit, 0), COALESCE(q.tpm_limit, 0),
+		       COALESCE(q.model_whitelist, '[]')
+		FROM users u
+		LEFT JOIN user_quotas q ON u.id = q.user_id
+		ORDER BY u.created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []User
+	for rows.Next() {
+		var u User
+		var wl []byte
+		if err := rows.Scan(&u.ID, &u.Name, &u.Email, &u.Status, &u.CreatedAt, &u.UpdatedAt,
+			&u.Balance, &u.RPM, &u.TPM, &wl); err != nil {
+			return nil, err
+		}
+		_ = json.Unmarshal(wl, &u.Whitelist)
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+// UpdateUser updates a user's basic info and status.
+func (s *Store) UpdateUser(ctx context.Context, id string, name, email, status string) error {
+	if id == "" || name == "" {
+		return ErrValidation
+	}
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx,
+			`UPDATE users SET name=$2, email=$3, status=$4, updated_at=now() WHERE id=$1`,
+			id, name, strPtr(email), status)
+		if err != nil {
+			return err
+		}
+		return assertRowsAffected(tag, id)
+	})
+}
+
+// ListAPIKeys returns all API keys for a user.
+func (s *Store) ListAPIKeys(ctx context.Context, userID string) ([]APIKey, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, user_id, name, key_prefix, status, last_used_at, created_at
+		FROM api_keys
+		WHERE user_id = $1
+		ORDER BY created_at DESC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []APIKey
+	for rows.Next() {
+		var k APIKey
+		if err := rows.Scan(&k.ID, &k.UserID, &k.Name, &k.KeyPrefix, &k.Status, &k.LastUsedAt, &k.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, k)
+	}
+	return out, rows.Err()
+}
+
+// RevokeAPIKey revokes an API key.
+func (s *Store) RevokeAPIKey(ctx context.Context, id string) error {
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `UPDATE api_keys SET status='revoked' WHERE id=$1`, id)
+		if err != nil {
+			return err
+		}
+		return assertRowsAffected(tag, id)
 	})
 }
 

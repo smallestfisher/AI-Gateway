@@ -63,12 +63,28 @@ export const api = {
     return parse<T>(res);
   },
 
+  async post<T = { id: string }>(path: string, body: unknown): Promise<T> {
+    const res = await send(path, { method: "POST", body: JSON.stringify(body) });
+    if (!res.ok) throw await fail(res);
+    return parse<T>(res);
+  },
+
   async update(path: string, body: unknown): Promise<void> {
     const res = await send(path, { method: "PUT", body: JSON.stringify(body) });
     if (!res.ok && res.status !== 204) throw await fail(res);
   },
 
+  async put(path: string, body: unknown): Promise<void> {
+    const res = await send(path, { method: "PUT", body: JSON.stringify(body) });
+    if (!res.ok && res.status !== 204) throw await fail(res);
+  },
+
   async remove(path: string): Promise<void> {
+    const res = await send(path, { method: "DELETE" });
+    if (!res.ok && res.status !== 204) throw await fail(res);
+  },
+
+  async delete(path: string): Promise<void> {
     const res = await send(path, { method: "DELETE" });
     if (!res.ok && res.status !== 204) throw await fail(res);
   },

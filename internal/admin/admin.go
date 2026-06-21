@@ -120,6 +120,10 @@ func Mount(app *fiber.App, st *Store, token string) {
 	})
 
 	// users + api keys + quotas
+	g.Get("/users", func(c *fiber.Ctx) error {
+		items, err := st.ListUsers(c.UserContext())
+		return listResp(c, items, err)
+	})
 	g.Post("/users", func(c *fiber.Ctx) error {
 		var in struct {
 			Name    string `json:"name"`
@@ -132,6 +136,21 @@ func Mount(app *fiber.App, st *Store, token string) {
 		id, err := st.CreateUser(c.UserContext(), in.Name, in.Email, in.Balance)
 		return createResp(c, id, err)
 	})
+	g.Put("/users/:id", func(c *fiber.Ctx) error {
+		var in struct {
+			Name   string `json:"name"`
+			Email  string `json:"email"`
+			Status string `json:"status"`
+		}
+		if err := c.BodyParser(&in); err != nil {
+			return c.Status(400).JSON(errMap("bad_request", err.Error()))
+		}
+		return writeErr(c, st.UpdateUser(c.UserContext(), c.Params("id"), in.Name, in.Email, in.Status))
+	})
+	g.Get("/users/:id/api-keys", func(c *fiber.Ctx) error {
+		items, err := st.ListAPIKeys(c.UserContext(), c.Params("id"))
+		return listResp(c, items, err)
+	})
 	g.Post("/users/:id/api-keys", func(c *fiber.Ctx) error {
 		var in struct{ Name string `json:"name"` }
 		_ = c.BodyParser(&in)
@@ -140,6 +159,9 @@ func Mount(app *fiber.App, st *Store, token string) {
 			return writeErr(c, err)
 		}
 		return c.Status(201).JSON(fiber.Map{"id": id, "key": raw}) // plaintext shown once
+	})
+	g.Delete("/users/:id/api-keys/:key_id", func(c *fiber.Ctx) error {
+		return writeErr(c, st.RevokeAPIKey(c.UserContext(), c.Params("key_id")))
 	})
 	g.Put("/users/:id/quota", func(c *fiber.Ctx) error {
 		var in struct {
