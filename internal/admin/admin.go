@@ -47,6 +47,15 @@ func Mount(app *fiber.App, st *Store, token string) {
 		return c.JSON(fiber.Map{"data": points})
 	})
 
+	// request logs (log center): filtered, paginated list of request_logs rows.
+	g.Get("/logs", func(c *fiber.Ctx) error {
+		res, err := st.ListLogs(c.UserContext(), parseLogFilter(c))
+		if err != nil {
+			return writeErr(c, err)
+		}
+		return c.JSON(res) // { data, total }
+	})
+
 	// providers
 	g.Get("/providers", func(c *fiber.Ctx) error {
 		items, err := st.ListProviders(c.UserContext())
@@ -59,6 +68,10 @@ func Mount(app *fiber.App, st *Store, token string) {
 		}
 		id, err := st.CreateProvider(c.UserContext(), p)
 		return createResp(c, id, err)
+	})
+	g.Get("/providers/:id/upstream-models", func(c *fiber.Ctx) error {
+		items, err := st.ListUpstreamModels(c.UserContext(), c.Params("id"))
+		return listResp(c, items, err)
 	})
 	g.Put("/providers/:id", func(c *fiber.Ctx) error {
 		var p Provider
@@ -164,12 +177,17 @@ func Mount(app *fiber.App, st *Store, token string) {
 		}
 		return writeErr(c, st.UpdateUser(c.UserContext(), c.Params("id"), in.Name, in.Email, in.Status))
 	})
+	g.Delete("/users/:id", func(c *fiber.Ctx) error {
+		return writeErr(c, st.DeleteUser(c.UserContext(), c.Params("id")))
+	})
 	g.Get("/users/:id/api-keys", func(c *fiber.Ctx) error {
 		items, err := st.ListAPIKeys(c.UserContext(), c.Params("id"))
 		return listResp(c, items, err)
 	})
 	g.Post("/users/:id/api-keys", func(c *fiber.Ctx) error {
-		var in struct{ Name string `json:"name"` }
+		var in struct {
+			Name string `json:"name"`
+		}
 		_ = c.BodyParser(&in)
 		raw, id, err := st.IssueAPIKey(c.UserContext(), c.Params("id"), in.Name)
 		if err != nil {
@@ -182,10 +200,10 @@ func Mount(app *fiber.App, st *Store, token string) {
 	})
 	g.Put("/users/:id/quota", func(c *fiber.Ctx) error {
 		var in struct {
-			Balance    int64    `json:"balance"`
-			RPM        int      `json:"rpm"`
-			TPM        int      `json:"tpm"`
-			Whitelist  []string `json:"whitelist"`
+			Balance   int64    `json:"balance"`
+			RPM       int      `json:"rpm"`
+			TPM       int      `json:"tpm"`
+			Whitelist []string `json:"whitelist"`
 		}
 		if err := c.BodyParser(&in); err != nil {
 			return c.Status(400).JSON(errMap("bad_request", err.Error()))

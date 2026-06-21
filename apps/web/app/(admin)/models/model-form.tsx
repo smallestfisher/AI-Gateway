@@ -17,8 +17,8 @@ import type { Model } from "@/lib/types";
 const schema = z.object({
   alias: z
     .string()
-    .min(1, "Required")
-    .regex(/^[a-zA-Z0-9_.\-\/]+$/, "Letters, digits, _ . - / only"),
+    .min(1, "必填")
+    .regex(/^[a-zA-Z0-9_.\-\/]+$/, "仅支持字母、数字、_、.、-、/"),
   display_name: z.string().optional(),
   description: z.string().optional(),
   enabled: z.boolean(),
@@ -67,17 +67,17 @@ export function ModelForm({
     <FormSheet
       open={open}
       onOpenChange={onOpenChange}
-      title="New model"
-      description="Create a model alias. Then bind upstream channels to it."
+      title="新建模型"
+      description="创建模型别名后，再为它绑定上游通道。"
       onSubmit={form.handleSubmit(handle)}
       submitting={submitting}
-      submitLabel="Create model"
+      submitLabel="创建模型"
     >
       <Field
-        label="Alias"
+        label="别名"
         required
         error={form.formState.errors.alias?.message}
-        hint="The name clients request, e.g. gpt-4o or claude-3.5-sonnet."
+        hint="客户端请求的模型名称，例如 gpt-4o 或 claude-3.5-sonnet。"
       >
         <Input
           {...form.register("alias")}
@@ -87,8 +87,8 @@ export function ModelForm({
       </Field>
 
       <Field
-        label="Display name"
-        hint="Optional. Defaults to the alias if left blank."
+        label="显示名称"
+        hint="可选。留空时默认使用别名。"
       >
         <Input
           {...form.register("display_name")}
@@ -96,11 +96,11 @@ export function ModelForm({
         />
       </Field>
 
-      <Field label="Description">
+      <Field label="描述">
         <Textarea
           {...form.register("description")}
           rows={3}
-          placeholder="What this alias is for…"
+          placeholder="这个别名的用途..."
         />
       </Field>
 
@@ -108,7 +108,7 @@ export function ModelForm({
         control={form.control}
         name="enabled"
         render={({ field }) => (
-          <Field label="Enabled">
+          <Field label="启用">
             <Switch
               checked={field.value}
               onCheckedChange={field.onChange}

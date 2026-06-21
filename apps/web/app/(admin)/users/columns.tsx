@@ -8,15 +8,17 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Key, CreditCard } from "lucide-react";
+import { MoreHorizontal, Key, CreditCard, Trash2 } from "lucide-react";
 
 interface ColumnsProps {
   onEdit: (user: User) => void;
   onManageKeys: (user: User) => void;
   onManageQuota: (user: User) => void;
   onToggleStatus: (user: User) => void;
+  onDelete: (user: User) => void;
 }
 
 export function createColumns({
@@ -24,32 +26,33 @@ export function createColumns({
   onManageKeys,
   onManageQuota,
   onToggleStatus,
+  onDelete,
 }: ColumnsProps): ColumnDef<User>[] {
   return [
     {
       accessorKey: "name",
-      header: "Name",
+      header: "名称",
     },
     {
       accessorKey: "email",
-      header: "Email",
+      header: "邮箱",
       cell: ({ row }) => row.original.email || "—",
     },
     {
       accessorKey: "status",
-      header: "Status",
+      header: "状态",
       cell: ({ row }) => (
         <Badge variant={row.original.status === "active" ? "default" : "secondary"}>
-          {row.original.status}
+          {row.original.status === "active" ? "启用" : "停用"}
         </Badge>
       ),
     },
     {
       accessorKey: "balance",
-      header: "Balance",
+      header: "余额",
       cell: ({ row }) => (
         <span className="tabular-nums">
-          {row.original.balance.toLocaleString()} tokens
+          {row.original.balance.toLocaleString()} token
         </span>
       ),
     },
@@ -73,10 +76,10 @@ export function createColumns({
     },
     {
       accessorKey: "whitelist",
-      header: "Whitelist",
+      header: "白名单",
       cell: ({ row }) => {
         const count = row.original.whitelist?.length || 0;
-        return count > 0 ? `${count} models` : "All";
+        return count > 0 ? `${count} 个模型` : "全部";
       },
     },
     {
@@ -92,18 +95,26 @@ export function createColumns({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => onEdit(user)}>
-                Edit user
+                编辑用户
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onManageKeys(user)}>
                 <Key className="mr-2 h-4 w-4" />
-                Manage API keys
+                管理 API 密钥
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onManageQuota(user)}>
                 <CreditCard className="mr-2 h-4 w-4" />
-                Manage quota
+                管理配额
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onToggleStatus(user)}>
-                {user.status === "active" ? "Disable" : "Enable"}
+                {user.status === "active" ? "停用" : "启用"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => onDelete(user)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                删除用户
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

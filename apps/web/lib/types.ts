@@ -40,6 +40,11 @@ export interface ModelChannel {
   enabled: boolean;
 }
 
+export interface UpstreamModel {
+  id: string;
+  display_name?: string;
+}
+
 export type ProfileScope = "default" | "provider" | "model";
 
 export interface ClientProfile {
@@ -84,7 +89,53 @@ export interface APIKey {
   user_id: string;
   name: string;
   key_prefix: string;
+  key?: string;
   status: "active" | "revoked";
   last_used_at?: string | null;
   created_at?: string;
+}
+
+// Mirrors internal/admin/logs.go RequestLog — one row of request_logs.
+export interface RequestLog {
+  id: string;
+  timestamp: string; // RFC3339
+  user_id?: string;
+  api_key_id?: string;
+  protocol: Protocol | string;
+  model: string;
+  provider_id?: string;
+  upstream_model?: string;
+  stream: boolean;
+  status: string; // success | error | no_channel | no_available_channel
+  http_status?: number;
+  stop_reason?: string;
+  ttft_ms?: number;
+  latency_ms?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_read_tokens?: number;
+  cache_creation_tokens?: number;
+  reasoning_tokens?: number;
+  error_code?: string;
+  error_msg?: string;
+  request_id: string;
+}
+
+export interface LogList {
+  data: RequestLog[];
+  total: number;
+}
+
+export interface LogFilter {
+  user_id?: string;
+  model?: string;
+  provider_id?: string;
+  protocol?: string;
+  status?: string;
+  q?: string;
+  stream?: boolean;
+  from?: string;
+  to?: string;
+  limit: number;
+  offset: number;
 }

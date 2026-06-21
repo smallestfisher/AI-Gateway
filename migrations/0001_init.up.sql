@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
     name            TEXT NOT NULL,
     key_prefix      TEXT NOT NULL,
     key_hash        TEXT NOT NULL UNIQUE,
+    key_enc         BYTEA,
     scopes          JSONB NOT NULL DEFAULT '[]',
     status          TEXT NOT NULL DEFAULT 'active',  -- active | revoked
     expires_at      TIMESTAMPTZ,

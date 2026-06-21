@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/aigateway/ai-hub/internal/auth"
 	"github.com/aigateway/ai-hub/internal/registrydb"
@@ -110,40 +111,40 @@ type ModelChannel struct {
 
 // ClientProfile is the admin view of an egress-impersonation profile.
 type ClientProfile struct {
-	ID                string            `json:"id,omitempty"`
-	Name              string            `json:"name"`
-	Scope             string            `json:"scope"` // default | provider | model
-	TargetID          *string           `json:"target_id,omitempty"`
-	Headers           map[string]string `json:"headers,omitempty"`
-	UserAgent         string            `json:"user_agent,omitempty"`
-	Origin            string            `json:"origin,omitempty"`
-	Referer           string            `json:"referer,omitempty"`
-	StripClientHeaders bool             `json:"strip_client_headers"`
-	Enabled           bool              `json:"enabled"`
+	ID                 string            `json:"id,omitempty"`
+	Name               string            `json:"name"`
+	Scope              string            `json:"scope"` // default | provider | model
+	TargetID           *string           `json:"target_id,omitempty"`
+	Headers            map[string]string `json:"headers,omitempty"`
+	UserAgent          string            `json:"user_agent,omitempty"`
+	Origin             string            `json:"origin,omitempty"`
+	Referer            string            `json:"referer,omitempty"`
+	StripClientHeaders bool              `json:"strip_client_headers"`
+	Enabled            bool              `json:"enabled"`
 }
 
 // RouterPolicy is the admin view of a routing policy.
 type RouterPolicy struct {
-	ID     string         `json:"id,omitempty"`
-	Scope  string         `json:"scope"` // global | model
-	ModelID *string       `json:"model_id,omitempty"`
-	Mode   string         `json:"mode"` // failover | weighted | auto
-	Params map[string]any `json:"params,omitempty"`
-	Enabled bool          `json:"enabled"`
+	ID      string         `json:"id,omitempty"`
+	Scope   string         `json:"scope"` // global | model
+	ModelID *string        `json:"model_id,omitempty"`
+	Mode    string         `json:"mode"` // failover | weighted | auto
+	Params  map[string]any `json:"params,omitempty"`
+	Enabled bool           `json:"enabled"`
 }
 
 // User is the admin view of a user.
 type User struct {
-	ID        string  `json:"id,omitempty"`
-	Name      string  `json:"name"`
-	Email     string  `json:"email,omitempty"`
-	Status    string  `json:"status"` // active | disabled
-	Balance   int64   `json:"balance"`
-	RPM       int     `json:"rpm,omitempty"`
-	TPM       int     `json:"tpm,omitempty"`
+	ID        string   `json:"id,omitempty"`
+	Name      string   `json:"name"`
+	Email     string   `json:"email,omitempty"`
+	Status    string   `json:"status"` // active | disabled
+	Balance   int64    `json:"balance"`
+	RPM       int      `json:"rpm,omitempty"`
+	TPM       int      `json:"tpm,omitempty"`
 	Whitelist []string `json:"whitelist,omitempty"`
-	CreatedAt string  `json:"created_at,omitempty"`
-	UpdatedAt string  `json:"updated_at,omitempty"`
+	CreatedAt string   `json:"created_at,omitempty"`
+	UpdatedAt string   `json:"updated_at,omitempty"`
 }
 
 // APIKey is the admin view of an API key.
@@ -152,6 +153,7 @@ type APIKey struct {
 	UserID     string  `json:"user_id"`
 	Name       string  `json:"name"`
 	KeyPrefix  string  `json:"key_prefix"`
+	Key        string  `json:"key,omitempty"`
 	Status     string  `json:"status"` // active | revoked
 	LastUsedAt *string `json:"last_used_at,omitempty"`
 	CreatedAt  string  `json:"created_at,omitempty"`
@@ -465,8 +467,8 @@ func (s *Store) IssueAPIKey(ctx context.Context, userID, name string) (raw, id s
 	raw = generateKey()
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx,
-			`INSERT INTO api_keys (user_id,name,key_prefix,key_hash) VALUES ($1,$2,$3,$4) RETURNING id`,
-			userID, firstNonEmpty(name, "default"), raw[:16], auth.HashKey(raw),
+			`INSERT INTO api_keys (user_id,name,key_prefix,key_hash,key_enc) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+			userID, firstNonEmpty(name, "default"), raw[:16], auth.HashKey(raw), []byte(raw),
 		).Scan(&id)
 	})
 	return raw, id, err
@@ -510,10 +512,13 @@ func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
 	for rows.Next() {
 		var u User
 		var wl []byte
-		if err := rows.Scan(&u.ID, &u.Name, &u.Email, &u.Status, &u.CreatedAt, &u.UpdatedAt,
+		var createdAt, updatedAt time.Time
+		if err := rows.Scan(&u.ID, &u.Name, &u.Email, &u.Status, &createdAt, &updatedAt,
 			&u.Balance, &u.RPM, &u.TPM, &wl); err != nil {
 			return nil, err
 		}
+		u.CreatedAt = createdAt.Format(time.RFC3339)
+		u.UpdatedAt = updatedAt.Format(time.RFC3339)
 		_ = json.Unmarshal(wl, &u.Whitelist)
 		out = append(out, u)
 	}
@@ -536,10 +541,24 @@ func (s *Store) UpdateUser(ctx context.Context, id string, name, email, status s
 	})
 }
 
+// DeleteUser removes a user and cascades api_keys/user_quotas via FK rules.
+func (s *Store) DeleteUser(ctx context.Context, id string) error {
+	if id == "" {
+		return ErrValidation
+	}
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `DELETE FROM users WHERE id=$1`, id)
+		if err != nil {
+			return err
+		}
+		return assertRowsAffected(tag, id)
+	})
+}
+
 // ListAPIKeys returns all API keys for a user.
 func (s *Store) ListAPIKeys(ctx context.Context, userID string) ([]APIKey, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, user_id, name, key_prefix, status, last_used_at, created_at
+		SELECT id, user_id, name, key_prefix, COALESCE(key_enc, ''::bytea), status, last_used_at, created_at
 		FROM api_keys
 		WHERE user_id = $1
 		ORDER BY created_at DESC`, userID)
@@ -550,9 +569,18 @@ func (s *Store) ListAPIKeys(ctx context.Context, userID string) ([]APIKey, error
 	var out []APIKey
 	for rows.Next() {
 		var k APIKey
-		if err := rows.Scan(&k.ID, &k.UserID, &k.Name, &k.KeyPrefix, &k.Status, &k.LastUsedAt, &k.CreatedAt); err != nil {
+		var lastUsedAt *time.Time
+		var createdAt time.Time
+		var keyEnc []byte
+		if err := rows.Scan(&k.ID, &k.UserID, &k.Name, &k.KeyPrefix, &keyEnc, &k.Status, &lastUsedAt, &createdAt); err != nil {
 			return nil, err
 		}
+		k.Key = string(keyEnc)
+		if lastUsedAt != nil {
+			v := lastUsedAt.Format(time.RFC3339)
+			k.LastUsedAt = &v
+		}
+		k.CreatedAt = createdAt.Format(time.RFC3339)
 		out = append(out, k)
 	}
 	return out, rows.Err()

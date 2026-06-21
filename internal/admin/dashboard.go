@@ -10,12 +10,12 @@ type DashboardStats struct {
 	Period string `json:"period"` // e.g., "24h", "7d"
 
 	// Top-level metrics
-	TotalRequests   int64   `json:"total_requests"`
-	ActiveUsers     int     `json:"active_users"`
-	ProviderCount   int     `json:"provider_count"`
-	ModelCount      int     `json:"model_count"`
-	AvgLatencyMs    float64 `json:"avg_latency_ms"`
-	SuccessRate     float64 `json:"success_rate"`
+	TotalRequests int64   `json:"total_requests"`
+	ActiveUsers   int     `json:"active_users"`
+	ProviderCount int     `json:"provider_count"`
+	ModelCount    int     `json:"model_count"`
+	AvgLatencyMs  float64 `json:"avg_latency_ms"`
+	SuccessRate   float64 `json:"success_rate"`
 
 	// Top models
 	TopModels []ModelStats `json:"top_models"`
@@ -33,17 +33,21 @@ type ModelStats struct {
 }
 
 type ErrorStat struct {
-	Timestamp   string `json:"timestamp"`
-	Model       string `json:"model"`
-	ProviderID  string `json:"provider_id,omitempty"`
-	ErrorCode   string `json:"error_code"`
-	ErrorMsg    string `json:"error_msg"`
-	Status      string `json:"status"`
+	Timestamp  string `json:"timestamp"`
+	Model      string `json:"model"`
+	ProviderID string `json:"provider_id,omitempty"`
+	ErrorCode  string `json:"error_code"`
+	ErrorMsg   string `json:"error_msg"`
+	Status     string `json:"status"`
 }
 
 // GetDashboardStats returns dashboard metrics for the last 24 hours.
 func (s *Store) GetDashboardStats(ctx context.Context) (*DashboardStats, error) {
-	stats := &DashboardStats{Period: "24h"}
+	stats := &DashboardStats{
+		Period:       "24h",
+		TopModels:    []ModelStats{},
+		RecentErrors: []ErrorStat{},
+	}
 	since := time.Now().Add(-24 * time.Hour)
 
 	// Total requests

@@ -1,7 +1,7 @@
 # AI Gateway 项目状态
 
 **更新日期：** 2026-06-21  
-**当前阶段：** Phase 5 局部完成 + Sub-project 1（Config Admin UI）已完成
+**当前阶段：** Phase 5 局部完成 + Config/Admin UI 已完成 + Log Center 基础版已完成
 
 ---
 
@@ -107,26 +107,27 @@
 
 ---
 
+### Log Center + Dashboard（Sub-project 2 基础版）
+
+**✅ 请求日志写入**
+- ✅ `request_logs` 表已存在（schema 完整）
+- ✅ `internal/logging` 已接入 `internal/server`，请求成功/失败会写入 `request_logs`
+- ✅ 已记录：request_id、用户/key、协议、模型、Provider、upstream_model、stream、status、HTTP status、stop_reason、TTFT、latency、tokens、error
+
+**✅ Log Center 基础前端**
+- ✅ 后端：`GET /api/admin/logs`（筛选 + 分页 + total）
+- ✅ 前端：`/logs` 日志列表页
+- ✅ 支持按模型、Provider、协议、状态、流式/非流式、时间范围筛选
+- ✅ 支持 request_id / model / error_code / error_msg 搜索
+- ❌ 详情抽屉（IR 转换备注、headers、body）
+- ❌ 导出功能
+
+**✅ Dashboard 基础前端**
+- ✅ 实时统计卡片（请求数、活跃用户、Provider 数、平均延迟）
+- ✅ 成功率、按模型 Top 5、最近异常列表
+- ❌ 成功率图表、TTFT 趋势图
+
 ## ⚠️ 未完成的功能
-
-### Sub-project 2：Log Center + Dashboard（后端未就绪）
-
-**❌ 缺失后端：请求日志写入**
-- `request_logs` 表已存在（schema 完整），但**没有代码写入数据**
-- 需要在 `internal/pipeline` 或 `internal/server` 增加日志记录逻辑
-- 需要：请求开始/结束时写入 `request_logs`（含 TTFT、latency、tokens、status、error）
-
-**❌ Log Center 前端（依赖日志数据）**
-- 查询界面（按用户/模型/Provider/状态/时间筛选）
-- 请求详情查看（IR 转换备注、headers、body）
-- 导出功能
-
-**❌ Dashboard 前端（依赖日志数据）**
-- 实时统计卡片（请求数、活跃用户、Provider 数、平均延迟）
-- 成功率图表
-- TTFT 趋势图
-- 按模型 Top 5
-- 最近异常列表
 
 **❌ Health 监控页面（前端）**
 - 实时健康状态展示
@@ -151,14 +152,10 @@
 
 ### Users & API Keys 管理页面（前端）
 
-**后端已就绪**（`POST /api/admin/users`, `POST /api/admin/users/:id/api-keys`, `PUT /api/admin/users/:id/quota`）
-
-**❌ 前端缺失**
-- `/users` 页面：用户列表、创建用户
-- 每个用户展开查看：
-  - API Keys 列表（发放新 Key，显示 key 一次后不再展示）
-  - 配额设置（balance, rpm, tpm, whitelist）
-  - 禁用用户
+**✅ 已完成**
+- ✅ `/users` 页面：用户列表、创建用户、编辑用户、禁用/启用用户
+- ✅ API Keys：列表、发放新 Key（明文仅显示一次）、撤销 Key
+- ✅ 配额设置：balance、rpm、tpm、whitelist
 
 ---
 
@@ -211,38 +208,26 @@
 
 ### 高优先级（产品完整性）
 
-1. **✅ Users & API Keys 前端页面**（1-2 天）
-   - 后端已就绪，只需前端 CRUD 页面
-   - 用户可以通过 UI 发放 API Key，完成"可对外提供服务"的闭环
-
-2. **❌ 请求日志写入（后端）**（2-3 天）
-   - 在 `internal/pipeline` 或 `internal/server` 增加日志记录
-   - 写入 `request_logs` 表（含 TTFT、latency、tokens、status）
-   - 解锁 Dashboard 和 Log Center
-
-3. **❌ Dashboard 前端**（3-4 天）
-   - 实时统计卡片
-   - 成功率 / TTFT 趋势图
-   - 按模型 Top 5
-   - 最近异常列表
-
-4. **❌ Log Center 前端**（3-4 天）
-   - 请求日志查询（筛选 + 分页）
+1. **❌ Log Center 详情与导出**（2-3 天）
    - 请求详情（IR 转换、headers、body）
-   - 导出功能
+   - CSV/JSON 导出功能
+
+2. **❌ Dashboard 图表增强**（2-3 天）
+   - 成功率 / TTFT 趋势图
+   - 按 Provider / Model 维度的延迟分布
 
 ### 中优先级（可观测性）
 
-5. **❌ Health 监控页面**（2-3 天）
+3. **❌ Health 监控页面**（2-3 天）
    - 实时健康状态
    - 熔断历史
    - TTFT / 延迟分布
 
-6. **❌ Request Simulator**（4-5 天）
+4. **❌ Request Simulator**（4-5 天）
    - 后端 dry-run API
    - 前端分阶段可视化
 
-7. **❌ Audit Logs**（2 天）
+5. **❌ Audit Logs**（2 天）
    - 后端写入逻辑
    - 前端查询页面
 

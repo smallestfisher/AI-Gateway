@@ -21,18 +21,18 @@ type PolicyMode = "failover" | "weighted" | "auto";
 const MODES: { value: PolicyMode; label: string; hint: string }[] = [
   {
     value: "failover",
-    label: "Failover",
-    hint: "Strict priority tiers; within a tier, highest weight wins. Deterministic.",
+    label: "故障转移",
+    hint: "严格按优先级分层；同层内优先选择权重最高的通道。",
   },
   {
     value: "weighted",
-    label: "Weighted",
-    hint: "Priority tiers; within a tier, weighted-random selection (heavier = more likely first).",
+    label: "加权",
+    hint: "按优先级分层；同层内按权重随机选择，权重越高越容易优先命中。",
   },
   {
     value: "auto",
-    label: "Auto",
-    hint: "Same as weighted today (reserved for smarter selection later).",
+    label: "自动",
+    hint: "当前等同于加权，后续保留给更智能的选择策略。",
   },
 ];
 
@@ -95,7 +95,7 @@ export function PolicyForm({
 
   async function handle(v: Values) {
     if (scope === "model" && !v.model_id) {
-      form.setError("model_id", { message: "Select a model" });
+      form.setError("model_id", { message: "请选择模型" });
       return;
     }
     let params: Record<string, unknown> | undefined;
@@ -103,7 +103,7 @@ export function PolicyForm({
       try {
         params = JSON.parse(v.params);
       } catch {
-        form.setError("params", { message: "Invalid JSON" });
+        form.setError("params", { message: "JSON 格式无效" });
         return;
       }
     }
@@ -125,24 +125,24 @@ export function PolicyForm({
       title={
         scope === "global"
           ? editing
-            ? "Edit global policy"
-            : "Set global policy"
+            ? "编辑全局策略"
+            : "设置全局策略"
           : editing
-            ? "Edit model override"
-            : "Add model override"
+            ? "编辑模型覆盖策略"
+            : "添加模型覆盖策略"
       }
       description={
         scope === "global"
-          ? "The default routing policy applied to every model without an override."
-          : "A per-model routing override, taking precedence over the global policy."
+          ? "默认路由策略，应用于所有没有覆盖策略的模型。"
+          : "单模型路由覆盖策略，优先级高于全局策略。"
       }
       onSubmit={form.handleSubmit(handle)}
       submitting={submitting}
-      submitLabel={editing ? "Save" : "Save policy"}
+      submitLabel={editing ? "保存" : "保存策略"}
     >
       {scope === "model" && (
         <Field
-          label="Model"
+          label="模型"
           required
           error={form.formState.errors.model_id?.message}
         >
@@ -156,7 +156,7 @@ export function PolicyForm({
                 disabled={!!editing}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select model" />
+                  <SelectValue placeholder="选择模型" />
                 </SelectTrigger>
                 <SelectContent>
                   {modelOptions.map((m) => (
@@ -171,7 +171,7 @@ export function PolicyForm({
         </Field>
       )}
 
-      <Field label="Mode" hint={modeMeta?.hint} error={form.formState.errors.mode?.message}>
+      <Field label="模式" hint={modeMeta?.hint} error={form.formState.errors.mode?.message}>
         <Controller
           control={form.control}
           name="mode"
@@ -196,7 +196,7 @@ export function PolicyForm({
         control={form.control}
         name="enabled"
         render={({ field }) => (
-          <Field label="Enabled">
+          <Field label="启用">
             <Switch
               checked={field.value}
               onCheckedChange={field.onChange}
@@ -207,8 +207,8 @@ export function PolicyForm({
       />
 
       <Field
-        label="Params (JSON, optional)"
-        hint="Reserved for future router tuning. The router currently ignores this field — weights live on channels."
+        label="参数（JSON，可选）"
+        hint="预留给后续路由调优。目前路由器会忽略该字段，权重仍配置在通道上。"
         error={form.formState.errors.params?.message}
       >
         <Textarea

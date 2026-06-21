@@ -25,9 +25,9 @@ const PROTOCOLS = [
 ];
 
 const schema = z.object({
-  name: z.string().min(1, "Required"),
+  name: z.string().min(1, "必填"),
   protocol: z.string().min(1),
-  base_url: z.string().min(1, "Required"),
+  base_url: z.string().min(1, "必填"),
   api_key: z.string().optional(),
   timeout_ms: z.number().int().positive(),
   connect_timeout_ms: z.number().int().positive(),
@@ -102,7 +102,7 @@ export function ProviderForm({
       try {
         metadata = JSON.parse(v.metadata);
       } catch {
-        form.setError("metadata", { message: "Invalid JSON" });
+        form.setError("metadata", { message: "JSON 格式无效" });
         return;
       }
     }
@@ -129,18 +129,18 @@ export function ProviderForm({
     <FormSheet
       open={open}
       onOpenChange={onOpenChange}
-      title={provider ? "Edit provider" : "New provider"}
-      description="Provider details. Changes hot-reload into routing."
+      title={provider ? "编辑供应商" : "新建供应商"}
+      description="供应商配置会热加载到路由，无需重启网关。"
       onSubmit={form.handleSubmit(handle)}
       submitting={submitting}
-      submitLabel={provider ? "Save changes" : "Create provider"}
+      submitLabel={provider ? "保存修改" : "创建供应商"}
     >
-      <Field label="Name" required error={form.formState.errors.name?.message}>
-        <Input {...form.register("name")} placeholder="OpenAI official" />
+      <Field label="名称" required error={form.formState.errors.name?.message}>
+        <Input {...form.register("name")} placeholder="OpenAI 官方" />
       </Field>
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Protocol" required>
+        <Field label="协议" required>
           <Controller
             control={form.control}
             name="protocol"
@@ -160,12 +160,12 @@ export function ProviderForm({
             )}
           />
         </Field>
-        <Field label="Priority">
+        <Field label="优先级">
           <Input type="number" {...form.register("priority", NUM)} />
         </Field>
       </div>
 
-      <Field label="Base URL" required error={form.formState.errors.base_url?.message}>
+      <Field label="基础 URL" required error={form.formState.errors.base_url?.message}>
         <Input
           {...form.register("base_url")}
           placeholder="https://api.openai.com"
@@ -173,8 +173,8 @@ export function ProviderForm({
       </Field>
 
       <Field
-        label="API key"
-        hint={provider ? "Leave blank to keep the existing key." : undefined}
+        label="API 密钥"
+        hint={provider ? "留空表示保留现有密钥。" : undefined}
       >
         <Input
           type="password"
@@ -185,17 +185,17 @@ export function ProviderForm({
       </Field>
 
       <div className="grid grid-cols-3 gap-3">
-        <Field label="Weight">
+        <Field label="权重">
           <Input type="number" {...form.register("weight", NUM)} />
         </Field>
-        <Field label="Max retries">
+        <Field label="最大重试">
           <Input type="number" {...form.register("max_retries", NUM)} />
         </Field>
         <Controller
           control={form.control}
           name="enabled"
           render={({ field }) => (
-            <Field label="Enabled">
+            <Field label="启用">
               <Switch
                 checked={field.value}
                 onCheckedChange={field.onChange}
@@ -207,37 +207,37 @@ export function ProviderForm({
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Timeout (ms)">
+        <Field label="超时 (ms)">
           <Input type="number" {...form.register("timeout_ms", NUM)} />
         </Field>
-        <Field label="Connect (ms)">
+        <Field label="连接超时 (ms)">
           <Input type="number" {...form.register("connect_timeout_ms", NUM)} />
         </Field>
       </div>
 
       <p className="pt-2 text-xs font-medium text-muted-foreground">
-        Circuit-breaker thresholds
+        熔断阈值
       </p>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Error rate" hint="0–1">
+        <Field label="错误率" hint="0-1">
           <Input
             type="number"
             step="0.05"
             {...form.register("hc_error_rate", NUM)}
           />
         </Field>
-        <Field label="p95 TTFT (ms)">
+        <Field label="p95 首字延迟 (ms)">
           <Input type="number" {...form.register("hc_p95_ttft_ms", NUM)} />
         </Field>
-        <Field label="Window (s)">
+        <Field label="窗口 (s)">
           <Input type="number" {...form.register("hc_window_sec", NUM)} />
         </Field>
-        <Field label="Cooldown (s)">
+        <Field label="冷却 (s)">
           <Input type="number" {...form.register("hc_cooldown_sec", NUM)} />
         </Field>
       </div>
 
-      <Field label="Metadata (JSON)" error={form.formState.errors.metadata?.message}>
+      <Field label="元数据 (JSON)" error={form.formState.errors.metadata?.message}>
         <Textarea
           {...form.register("metadata")}
           rows={3}

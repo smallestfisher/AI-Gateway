@@ -35,7 +35,7 @@ func setup(t *testing.T) (*pgxpool.Pool, *redis.Client, *fiber.App, *registrydb.
 	}
 	t.Cleanup(pool.Close)
 	// clean config tables
-	for _, tbl := range []string{"model_channels", "client_profiles", "router_policies", "models", "providers"} {
+	for _, tbl := range []string{"model_channels", "client_profiles", "router_policies", "models", "providers", "request_logs", "api_keys", "user_quotas", "users"} {
 		if _, err := pool.Exec(context.Background(), "DELETE FROM "+tbl); err != nil {
 			t.Fatal(err)
 		}
@@ -129,6 +129,88 @@ func TestAdminCRUDAndHotReload(t *testing.T) {
 	}
 }
 
+func TestAdminLogs(t *testing.T) {
+	pool, _, app, _ := setup(t)
+	ctx := context.Background()
+
+	// Seed two request_logs rows directly: one success, one error.
+	_, err := pool.Exec(ctx, `INSERT INTO request_logs
+		(client_protocol, model, upstream_model, stream, status, http_status,
+		 stop_reason, latency_ms, input_tokens, output_tokens, request_id)
+		VALUES ('openai_chat','gpt-4o','gpt-4o',false,'success',200,'stop',120,10,20,'req-success')`)
+	if err != nil {
+		t.Fatalf("seed success log: %v", err)
+	}
+	_, err = pool.Exec(ctx, `INSERT INTO request_logs
+		(client_protocol, model, stream, status, http_status, latency_ms,
+		 error_code, error_msg, request_id)
+		VALUES ('anthropic_messages','claude-3',true,'error',503,40,
+		 'upstream_error','boom upstream','req-error')`)
+	if err != nil {
+		t.Fatalf("seed error log: %v", err)
+	}
+
+	// List all — expect both rows, newest first (ts DESC), total=2.
+	resp, b := do(t, app, "GET", "/api/admin/logs?limit=10", "", true)
+	if resp.StatusCode != 200 {
+		t.Fatalf("list logs: %d %s", resp.StatusCode, b)
+	}
+	var list struct {
+		Data  []map[string]any `json:"data"`
+		Total int              `json:"total"`
+	}
+	if err := json.Unmarshal(b, &list); err != nil {
+		t.Fatalf("unmarshal logs: %v (%s)", err, b)
+	}
+	if list.Total != 2 || len(list.Data) != 2 {
+		t.Fatalf("want total=2 len=2, got total=%d len=%d", list.Total, len(list.Data))
+	}
+
+	// Field round-trip: the success row carries stop_reason + tokens.
+	var success map[string]any
+	for _, r := range list.Data {
+		if r["request_id"] == "req-success" {
+			success = r
+		}
+	}
+	if success == nil {
+		t.Fatal("success log missing from results")
+	}
+	if success["status"] != "success" || success["stop_reason"] != "stop" {
+		t.Errorf("success row fields wrong: %v", success)
+	}
+	if success["input_tokens"] != float64(10) || success["output_tokens"] != float64(20) {
+		t.Errorf("token fields wrong: %v", success)
+	}
+	if success["timestamp"] == nil || success["timestamp"] == "" {
+		t.Error("timestamp not populated")
+	}
+
+	// Filter by status=error — only the error row, total=1.
+	resp, b = do(t, app, "GET", "/api/admin/logs?status=error&limit=10", "", true)
+	if resp.StatusCode != 200 {
+		t.Fatalf("filter logs: %d %s", resp.StatusCode, b)
+	}
+	if err := json.Unmarshal(b, &list); err != nil {
+		t.Fatalf("unmarshal filtered logs: %v (%s)", err, b)
+	}
+	if list.Total != 1 || len(list.Data) != 1 {
+		t.Fatalf("want total=1 len=1 for error filter, got total=%d len=%d", list.Total, len(list.Data))
+	}
+	if list.Data[0]["error_code"] != "upstream_error" {
+		t.Errorf("error row wrong: %v", list.Data[0])
+	}
+
+	// Q search on error_msg matches "boom".
+	resp, b = do(t, app, "GET", "/api/admin/logs?q=boom&limit=10", "", true)
+	if err := json.Unmarshal(b, &list); err != nil {
+		t.Fatalf("unmarshal q logs: %v (%s)", err, b)
+	}
+	if list.Total != 1 || list.Data[0]["request_id"] != "req-error" {
+		t.Errorf("q search wrong: total=%d data=%v", list.Total, list.Data)
+	}
+}
+
 func TestAdminAuth(t *testing.T) {
 	_, _, app, _ := setup(t)
 	// no token -> 401
@@ -151,6 +233,63 @@ func TestAdminValidation(t *testing.T) {
 	resp, b := do(t, app, "POST", "/api/admin/providers", `{"name":""}`, true)
 	if resp.StatusCode != 400 {
 		t.Errorf("validation: got %d want 400 (%s)", resp.StatusCode, b)
+	}
+}
+
+func TestAdminDeleteUser(t *testing.T) {
+	pool, _, app, _ := setup(t)
+
+	resp, b := do(t, app, "POST", "/api/admin/users",
+		`{"name":"Delete Me","email":"delete-me@example.com","balance":1000}`, true)
+	if resp.StatusCode != 201 {
+		t.Fatalf("create user: %d %s", resp.StatusCode, b)
+	}
+	userID := idOf(t, b)
+
+	resp, b = do(t, app, "POST", "/api/admin/users/"+userID+"/api-keys",
+		`{"name":"test key"}`, true)
+	if resp.StatusCode != 201 {
+		t.Fatalf("issue api key: %d %s", resp.StatusCode, b)
+	}
+	issuedKey := keyOf(t, b)
+
+	resp, b = do(t, app, "GET", "/api/admin/users/"+userID+"/api-keys", "", true)
+	if resp.StatusCode != 200 {
+		t.Fatalf("list api keys: %d %s", resp.StatusCode, b)
+	}
+	if !strings.Contains(string(b), issuedKey) {
+		t.Fatalf("full api key missing from list response: %s", b)
+	}
+
+	resp, b = do(t, app, "DELETE", "/api/admin/users/"+userID, "", true)
+	if resp.StatusCode != 204 {
+		t.Fatalf("delete user: %d %s", resp.StatusCode, b)
+	}
+
+	resp, b = do(t, app, "GET", "/api/admin/users", "", true)
+	if resp.StatusCode != 200 {
+		t.Fatalf("list users: %d %s", resp.StatusCode, b)
+	}
+	if strings.Contains(string(b), userID) || strings.Contains(string(b), "Delete Me") {
+		t.Fatalf("deleted user still listed: %s", b)
+	}
+
+	var apiKeyCount int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM api_keys WHERE user_id=$1`, userID).Scan(&apiKeyCount); err != nil {
+		t.Fatalf("count api keys: %v", err)
+	}
+	if apiKeyCount != 0 {
+		t.Fatalf("api keys were not cascaded, count=%d", apiKeyCount)
+	}
+
+	var quotaCount int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM user_quotas WHERE user_id=$1`, userID).Scan(&quotaCount); err != nil {
+		t.Fatalf("count user quotas: %v", err)
+	}
+	if quotaCount != 0 {
+		t.Fatalf("user quotas were not cascaded, count=%d", quotaCount)
 	}
 }
 
@@ -201,4 +340,17 @@ func idOf(t *testing.T, body []byte) string {
 		t.Fatalf("no id in %s", body)
 	}
 	return id
+}
+
+func keyOf(t *testing.T, body []byte) string {
+	t.Helper()
+	var m map[string]any
+	if err := json.Unmarshal(body, &m); err != nil {
+		t.Fatalf("unmarshal %s: %v", body, err)
+	}
+	key, _ := m["key"].(string)
+	if key == "" {
+		t.Fatalf("no key in %s", body)
+	}
+	return key
 }

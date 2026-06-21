@@ -55,9 +55,9 @@ export function QuotaForm({ user, onSubmit, onCancel }: QuotaFormProps) {
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
       <Field
-        label="Balance"
+        label="余额"
         error={errors.balance?.message}
-        hint="Token balance (total available tokens)"
+        hint="Token 余额（可用总 token）"
       >
         <Input
           {...register("balance", { valueAsNumber: true })}
@@ -68,9 +68,9 @@ export function QuotaForm({ user, onSubmit, onCancel }: QuotaFormProps) {
       </Field>
 
       <Field
-        label="RPM Limit"
+        label="RPM 限制"
         error={errors.rpm?.message}
-        hint="Requests per minute (0 = unlimited)"
+        hint="每分钟请求数（0 表示不限制）"
       >
         <Input
           {...register("rpm", { valueAsNumber: true })}
@@ -81,9 +81,9 @@ export function QuotaForm({ user, onSubmit, onCancel }: QuotaFormProps) {
       </Field>
 
       <Field
-        label="TPM Limit"
+        label="TPM 限制"
         error={errors.tpm?.message}
-        hint="Tokens per minute (0 = unlimited)"
+        hint="每分钟 token 数（0 表示不限制）"
       >
         <Input
           {...register("tpm", { valueAsNumber: true })}
@@ -94,9 +94,9 @@ export function QuotaForm({ user, onSubmit, onCancel }: QuotaFormProps) {
       </Field>
 
       <Field
-        label="Model Whitelist"
+        label="模型白名单"
         error={errors.whitelist?.message}
-        hint="One model alias per line (empty = all models allowed)"
+        hint="每行一个模型别名；留空表示允许全部模型"
       >
         <Textarea
           {...register("whitelist")}
@@ -107,10 +107,10 @@ export function QuotaForm({ user, onSubmit, onCancel }: QuotaFormProps) {
 
       <div className="flex justify-end gap-2 pt-4">
         <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
+          取消
         </Button>
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Saving..." : "Update Quota"}
+          {isSubmitting ? "保存中..." : "更新配额"}
         </Button>
       </div>
     </form>

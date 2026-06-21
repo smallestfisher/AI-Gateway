@@ -18,7 +18,7 @@ export function FormSheet({
   description,
   onSubmit,
   submitting,
-  submitLabel = "Save",
+  submitLabel = "保存",
   children,
 }: {
   open: boolean;
@@ -51,7 +51,7 @@ export function FormSheet({
               onClick={() => onOpenChange(false)}
               disabled={submitting}
             >
-              Cancel
+              取消
             </Button>
             <Button type="submit" disabled={submitting}>
               {submitting && <Loader2 className="size-4 animate-spin" />}

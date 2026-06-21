@@ -34,19 +34,19 @@ export default function ProvidersPage() {
   async function submit(body: Partial<Provider>) {
     if (editing?.id) {
       await update.mutateAsync({ id: editing.id, body });
-      toast.success("Provider updated");
+      toast.success("供应商已更新");
     } else {
       await create.mutateAsync(body);
-      toast.success("Provider created");
+      toast.success("供应商已创建");
     }
   }
   async function confirmDelete() {
     if (!pendingDelete?.id) return;
     try {
       await remove.mutateAsync(pendingDelete.id);
-      toast.success("Provider deleted");
+      toast.success("供应商已删除");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Delete failed");
+      toast.error(e instanceof Error ? e.message : "删除失败");
     } finally {
       setPendingDelete(null);
     }
@@ -60,12 +60,12 @@ export default function ProvidersPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Providers"
-        description="Upstream API providers and their circuit-breaker thresholds."
+        title="供应商"
+        description="上游 API 供应商及其熔断阈值。"
         actions={
           <Button size="sm" onClick={startNew}>
             <Plus className="size-4" />
-            New provider
+            新建供应商
           </Button>
         }
       />
@@ -74,16 +74,16 @@ export default function ProvidersPage() {
         columns={columns}
         data={list.data ?? []}
         loading={list.isLoading}
-        searchPlaceholder="Search providers…"
+        searchPlaceholder="搜索供应商..."
         empty={
           <EmptyState
             icon={<Network className="size-5" />}
-            title="No providers yet"
-            description="Add an upstream provider to start routing."
+            title="暂无供应商"
+            description="添加上游供应商后即可开始路由请求。"
             action={
               <Button size="sm" onClick={startNew}>
                 <Plus className="size-4" />
-                New provider
+                新建供应商
               </Button>
             }
           />
@@ -101,9 +101,9 @@ export default function ProvidersPage() {
       <ConfirmDialog
         open={pendingDelete !== null}
         onOpenChange={(o) => !o && setPendingDelete(null)}
-        title={`Delete "${pendingDelete?.name}"?`}
-        description="This removes the provider. Models bound to it will lose this channel."
-        confirmLabel="Delete provider"
+        title={`删除 "${pendingDelete?.name}"？`}
+        description="删除后，绑定到该供应商的模型会失去这条通道。"
+        confirmLabel="删除供应商"
         loading={remove.isPending}
         onConfirm={confirmDelete}
       />

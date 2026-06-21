@@ -7,7 +7,7 @@ export async function POST(req: Request) {
   const { token } = (await req.json().catch(() => ({}))) as { token?: string };
   if (!token || typeof token !== "string") {
     return NextResponse.json(
-      { error: { message: "Token is required" } },
+      { error: { message: "请输入管理员 Token" } },
       { status: 400 },
     );
   }
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
 
   if (!verify || !verify.ok) {
     return NextResponse.json(
-      { error: { message: "Invalid or rejected token" } },
+      { error: { message: "Token 无效或被网关拒绝" } },
       { status: 401 },
     );
   }

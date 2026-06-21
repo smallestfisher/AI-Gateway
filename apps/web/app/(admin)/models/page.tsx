@@ -61,7 +61,7 @@ export default function ModelsPage() {
 
   async function createModel(body: Partial<Model>) {
     await models.create.mutateAsync(body);
-    toast.success("Model created");
+    toast.success("模型已创建");
   }
 
   async function confirmDeleteModel() {
@@ -70,9 +70,9 @@ export default function ModelsPage() {
       await models.remove.mutateAsync(pendingDeleteModel.id);
       // Channels may cascade (FK) or be orphaned; either way refresh both.
       channels.list.refetch();
-      toast.success("Model deleted");
+      toast.success("模型已删除");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Delete failed");
+      toast.error(e instanceof Error ? e.message : "删除失败");
     } finally {
       setPendingDeleteModel(null);
     }
@@ -81,16 +81,16 @@ export default function ModelsPage() {
   async function createChannel(body: Partial<ModelChannel>) {
     if (!channelTarget?.id) return;
     await channels.create.mutateAsync({ ...body, model_id: channelTarget.id });
-    toast.success("Channel bound");
+    toast.success("通道已绑定");
   }
 
   async function confirmDeleteChannel() {
     if (!pendingDeleteChannel?.id) return;
     try {
       await channels.remove.mutateAsync(pendingDeleteChannel.id);
-      toast.success("Channel removed");
+      toast.success("通道已移除");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Remove failed");
+      toast.error(e instanceof Error ? e.message : "移除失败");
     } finally {
       setPendingDeleteChannel(null);
     }
@@ -107,7 +107,7 @@ export default function ModelsPage() {
       <div className="px-4 py-3">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-xs font-medium text-muted-foreground">
-            Upstream channels ({list.length})
+            上游通道（{list.length}）
           </p>
           <Button
             size="sm"
@@ -115,14 +115,13 @@ export default function ModelsPage() {
             onClick={() => setChannelTarget(model)}
           >
             <Plus className="size-3.5" />
-            Bind channel
+            绑定通道
           </Button>
         </div>
 
         {list.length === 0 ? (
           <p className="rounded-md border border-dashed py-6 text-center text-xs text-muted-foreground">
-            No channels bound — this alias won&apos;t route. Bind a provider to
-            serve it.
+            暂无绑定通道。请绑定供应商，否则该别名无法路由。
           </p>
         ) : (
           <div className="space-y-1">
@@ -145,13 +144,13 @@ export default function ModelsPage() {
                     variant={c.enabled ? "default" : "secondary"}
                     className="text-[10px]"
                   >
-                    {c.enabled ? "on" : "off"}
+                    {c.enabled ? "启用" : "停用"}
                   </Badge>
                 </div>
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  aria-label="Remove channel"
+                  aria-label="移除通道"
                   onClick={() => setPendingDeleteChannel(c)}
                 >
                   <Trash2 className="size-3.5 text-destructive" />
@@ -167,12 +166,12 @@ export default function ModelsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Models"
-        description="Model aliases clients request, each routed to one or more upstream channels."
+        title="模型"
+        description="客户端请求的模型别名，每个别名可路由到一个或多个上游通道。"
         actions={
           <Button size="sm" onClick={() => setModelFormOpen(true)}>
             <Plus className="size-4" />
-            New model
+            新建模型
           </Button>
         }
       />
@@ -181,17 +180,17 @@ export default function ModelsPage() {
         columns={columns}
         data={models.list.data ?? []}
         loading={models.list.isLoading}
-        searchPlaceholder="Search models…"
+        searchPlaceholder="搜索模型..."
         renderExpanded={renderExpanded}
         empty={
           <EmptyState
             icon={<Boxes className="size-5" />}
-            title="No models yet"
-            description="Create a model alias, then bind upstream channels to route it."
+            title="暂无模型"
+            description="先创建模型别名，再绑定上游通道。"
             action={
               <Button size="sm" onClick={() => setModelFormOpen(true)}>
                 <Plus className="size-4" />
-                New model
+                新建模型
               </Button>
             }
           />
@@ -218,9 +217,9 @@ export default function ModelsPage() {
       <ConfirmDialog
         open={pendingDeleteModel !== null}
         onOpenChange={(o) => !o && setPendingDeleteModel(null)}
-        title={`Delete “${pendingDeleteModel?.alias}”?`}
-        description="Removing the model also unbinds its channels. Clients requesting this alias will get no-channel errors."
-        confirmLabel="Delete model"
+        title={`删除“${pendingDeleteModel?.alias}”？`}
+        description="删除模型会同时解绑其通道。客户端请求该别名时将返回无通道错误。"
+        confirmLabel="删除模型"
         loading={models.remove.isPending}
         onConfirm={confirmDeleteModel}
       />
@@ -228,9 +227,9 @@ export default function ModelsPage() {
       <ConfirmDialog
         open={pendingDeleteChannel !== null}
         onOpenChange={(o) => !o && setPendingDeleteChannel(null)}
-        title="Remove this channel?"
-        description="The alias will no longer route through this provider."
-        confirmLabel="Remove channel"
+        title="移除这条通道？"
+        description="该别名将不再通过这个供应商路由。"
+        confirmLabel="移除通道"
         loading={channels.remove.isPending}
         onConfirm={confirmDeleteChannel}
       />

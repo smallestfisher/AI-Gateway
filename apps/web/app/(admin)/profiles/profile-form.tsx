@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Sparkles, Trash2 } from "lucide-react";
 import { FormSheet } from "@/components/form-sheet";
 import { Field } from "@/components/field";
 import { Input } from "@/components/ui/input";
@@ -24,18 +24,18 @@ type Scope = "default" | "provider" | "model";
 const SCOPES: { value: Scope; label: string; hint: string }[] = [
   {
     value: "default",
-    label: "Default",
-    hint: "Applies to every request with no more specific profile.",
+    label: "默认",
+    hint: "没有更具体配置时应用到所有请求。",
   },
   {
     value: "provider",
-    label: "Per provider",
-    hint: "Applies to all models/channels on a provider.",
+    label: "按供应商",
+    hint: "应用到某个供应商下的所有模型/通道。",
   },
   {
     value: "model",
-    label: "Per model",
-    hint: "Applies to a single model alias.",
+    label: "按模型",
+    hint: "应用到单个模型别名。",
   },
 ];
 
@@ -43,7 +43,7 @@ const SCOPES: { value: Scope; label: string; hint: string }[] = [
 // handle() (mirroring provider-form's metadata validation) rather than via a
 // zod superRefine, to stay version-agnostic and match the codebase pattern.
 const schema = z.object({
-  name: z.string().min(1, "Required"),
+  name: z.string().min(1, "必填"),
   scope: z.enum(["default", "provider", "model"]),
   target_id: z.string().optional(),
   user_agent: z.string().optional(),
@@ -67,6 +67,39 @@ const EMPTY: Values = {
 };
 
 type HeaderRow = { key: string; value: string };
+
+type HeaderPreset = {
+  id: string;
+  label: string;
+  name: string;
+  userAgent: string;
+  origin?: string;
+  referer?: string;
+  headers: HeaderRow[];
+};
+
+const HEADER_PRESETS: HeaderPreset[] = [
+  {
+    id: "codex-cli",
+    label: "Codex CLI",
+    name: "Codex CLI",
+    userAgent: "codex-cli/0.1.0 (external, cli)",
+    headers: [
+      { key: "OpenAI-Beta", value: "responses=v1" },
+      { key: "X-Client-Name", value: "codex-cli" },
+    ],
+  },
+  {
+    id: "claude-code",
+    label: "Claude Code",
+    name: "Claude Code",
+    userAgent: "claude-cli/1.0 (external, cli)",
+    headers: [
+      { key: "anthropic-version", value: "2023-06-01" },
+      { key: "anthropic-beta", value: "claude-code-20250219" },
+    ],
+  },
+];
 
 export function ProfileForm({
   open,
@@ -108,12 +141,21 @@ export function ProfileForm({
   function addHeaderRow() {
     setHeaderRows((rows) => [...rows, { key: "", value: "" }]);
   }
+  function applyPreset(preset: HeaderPreset) {
+    const currentName = form.getValues("name").trim();
+    if (!currentName) form.setValue("name", preset.name);
+    form.setValue("user_agent", preset.userAgent);
+    form.setValue("origin", preset.origin ?? "");
+    form.setValue("referer", preset.referer ?? "");
+    form.setValue("strip_client_headers", true);
+    setHeaderRows((rows) => mergeHeaderRows(rows, preset.headers));
+  }
 
   async function handle(v: Values) {
     if (v.scope !== "default" && !v.target_id) {
       form.setError("target_id", {
         message:
-          v.scope === "provider" ? "Select a provider" : "Select a model",
+          v.scope === "provider" ? "请选择供应商" : "请选择模型",
       });
       return;
     }
@@ -143,14 +185,14 @@ export function ProfileForm({
     <FormSheet
       open={open}
       onOpenChange={onOpenChange}
-      title="New client profile"
-      description="Egress impersonation profile — injected headers/UA sent to the upstream on this scope's behalf."
+      title="新建客户端伪装"
+      description="在指定作用域内，为发往上游的请求注入 Header / UA。"
       onSubmit={form.handleSubmit(handle)}
       submitting={submitting}
-      submitLabel="Create profile"
+      submitLabel="创建配置"
     >
       <Field
-        label="Name"
+        label="名称"
         required
         error={form.formState.errors.name?.message}
       >
@@ -162,7 +204,7 @@ export function ProfileForm({
       </Field>
 
       <Field
-        label="Scope"
+        label="作用域"
         hint={scopeMeta?.hint}
       error={form.formState.errors.scope?.message}
       >
@@ -194,7 +236,7 @@ export function ProfileForm({
 
       {scope !== "default" && (
         <Field
-          label={scope === "provider" ? "Target provider" : "Target model"}
+          label={scope === "provider" ? "目标供应商" : "目标模型"}
           required
           error={form.formState.errors.target_id?.message}
         >
@@ -223,8 +265,8 @@ export function ProfileForm({
                     <SelectValue
                       placeholder={
                         scope === "provider"
-                          ? "Select provider"
-                          : "Select model"
+                          ? "选择供应商"
+                          : "选择模型"
                       }
                     />
                   </SelectTrigger>
@@ -236,14 +278,14 @@ export function ProfileForm({
                         disabled={o.disabled}
                       >
                         {o.label}
-                        {o.disabled && " (disabled)"}
+                        {o.disabled && "（已停用）"}
                       </SelectItem>
                     ))}
                     {options.length === 0 && (
                       <div className="px-2 py-1.5 text-xs text-muted-foreground">
                         {scope === "provider"
-                          ? "No providers configured."
-                          : "No models configured."}
+                          ? "暂无供应商配置。"
+                          : "暂无模型配置。"}
                       </div>
                     )}
                   </SelectContent>
@@ -255,8 +297,27 @@ export function ProfileForm({
       )}
 
       <p className="pt-2 text-xs font-medium text-muted-foreground">
-        Impersonation
+        伪装内容
       </p>
+      <div className="rounded-lg border bg-muted/20 p-3">
+        <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Sparkles className="size-3.5" />
+          常用 CLI 预设
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {HEADER_PRESETS.map((preset) => (
+            <Button
+              key={preset.id}
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => applyPreset(preset)}
+            >
+              {preset.label}
+            </Button>
+          ))}
+        </div>
+      </div>
       <Field label="User-Agent">
         <Input
           {...form.register("user_agent")}
@@ -283,7 +344,7 @@ export function ProfileForm({
 
       <Field
         label="Headers"
-        hint="Extra request headers injected on egress. Empty keys are ignored."
+        hint="出站请求额外注入的 Header。空键会被忽略。"
       >
         <div className="space-y-2">
           {headerRows.map((row, i) => (
@@ -291,7 +352,7 @@ export function ProfileForm({
               <Input
                 value={row.key}
                 onChange={(e) => updateHeaderRow(i, { key: e.target.value })}
-                placeholder="header"
+                placeholder="Header 名称"
                 className="font-mono text-xs"
               />
               <Input
@@ -299,14 +360,14 @@ export function ProfileForm({
                 onChange={(e) =>
                   updateHeaderRow(i, { value: e.target.value })
                 }
-                placeholder="value"
+                placeholder="Header 值"
                 className="font-mono text-xs"
               />
               <Button
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                aria-label="Remove header"
+                aria-label="移除 Header"
                 onClick={() => removeHeaderRow(i)}
                 disabled={headerRows.length === 1}
               >
@@ -321,7 +382,7 @@ export function ProfileForm({
             onClick={addHeaderRow}
           >
             <Plus className="size-3.5" />
-            Add header
+            添加 Header
           </Button>
         </div>
       </Field>
@@ -332,8 +393,8 @@ export function ProfileForm({
           name="strip_client_headers"
           render={({ field }) => (
             <Field
-              label="Strip client headers"
-              hint="Drop inbound client headers before impersonation."
+              label="剥离客户端 Header"
+              hint="执行伪装前丢弃入站客户端 Header。"
             >
               <Switch
                 checked={field.value}
@@ -347,7 +408,7 @@ export function ProfileForm({
           control={form.control}
           name="enabled"
           render={({ field }) => (
-            <Field label="Enabled">
+            <Field label="启用">
               <Switch
                 checked={field.value}
                 onCheckedChange={field.onChange}
@@ -359,4 +420,21 @@ export function ProfileForm({
       </div>
     </FormSheet>
   );
+}
+
+function mergeHeaderRows(existing: HeaderRow[], preset: HeaderRow[]) {
+  const merged = existing
+    .map((row) => ({ key: row.key.trim(), value: row.value }))
+    .filter((row) => row.key !== "");
+  for (const header of preset) {
+    const idx = merged.findIndex(
+      (row) => row.key.toLowerCase() === header.key.toLowerCase(),
+    );
+    if (idx >= 0) {
+      merged[idx] = header;
+    } else {
+      merged.push(header);
+    }
+  }
+  return merged.length > 0 ? merged : [{ key: "", value: "" }];
 }

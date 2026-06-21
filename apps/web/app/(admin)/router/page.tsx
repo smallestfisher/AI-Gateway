@@ -36,7 +36,7 @@ function statusBadge(enabled: boolean) {
           enabled ? "bg-emerald-500" : "bg-muted-foreground"
         }`}
       />
-      {enabled ? "enabled" : "disabled"}
+      {enabled ? "已启用" : "已停用"}
     </Badge>
   );
 }
@@ -108,57 +108,56 @@ export default function RouterPage() {
   async function upsert(body: Partial<RouterPolicy>) {
     try {
       await policies.create.mutateAsync(body);
-      toast.success("Policy saved");
+      toast.success("策略已保存");
       setFormOpen(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Save failed");
+      toast.error(e instanceof Error ? e.message : "保存失败");
     }
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Router"
-        description="How candidate channels are ordered for each model: a global policy, optionally overridden per model."
+        title="路由策略"
+        description="控制每个模型的候选通道排序：全局策略可被单个模型覆盖。"
       />
 
       {/* Global policy */}
       <Card>
         <CardHeader className="border-b">
-          <CardTitle>Global policy</CardTitle>
+          <CardTitle>全局策略</CardTitle>
           <CardDescription>
-            Applied to every model without a per-model override.
+            应用于所有没有单独覆盖策略的模型。
           </CardDescription>
           <CardAction>
             {globalPolicy ? (
               <Button variant="outline" size="sm" onClick={() => openGlobal(globalPolicy)}>
                 <Pencil className="size-3.5" />
-                Edit
+                编辑
               </Button>
             ) : (
               <Button size="sm" onClick={() => openGlobal(null)}>
-                Set global policy
+                设置全局策略
               </Button>
             )}
           </CardAction>
         </CardHeader>
         <CardContent className="pt-4">
           {policies.list.isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">加载中...</p>
           ) : globalPolicy ? (
             <div className="flex flex-wrap items-center gap-3 text-sm">
               {modeBadge(globalPolicy.mode)}
               {statusBadge(globalPolicy.enabled)}
               {paramCount(globalPolicy) > 0 && (
                 <span className="text-xs text-muted-foreground">
-                  params: {paramCount(globalPolicy)} key
-                  {paramCount(globalPolicy) === 1 ? "" : "s"}
+                  参数：{paramCount(globalPolicy)} 项
                 </span>
               )}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Not set — models use the built-in default (failover) behavior.
+              尚未设置，模型将使用内置默认策略（failover）。
             </p>
           )}
         </CardContent>
@@ -168,9 +167,9 @@ export default function RouterPage() {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-semibold">Per-model overrides</h2>
+            <h2 className="text-sm font-semibold">按模型覆盖</h2>
             <p className="text-xs text-muted-foreground">
-              Take precedence over the global policy for a single model.
+              针对单个模型生效，优先级高于全局策略。
             </p>
           </div>
           <Button
@@ -180,20 +179,20 @@ export default function RouterPage() {
             disabled={modelOptions.length === 0}
             title={
               modelOptions.length === 0
-                ? "Every model already has an override."
+                ? "每个模型都已有覆盖策略。"
                 : undefined
             }
           >
             <Plus className="size-3.5" />
-            Add override
+            添加覆盖
           </Button>
         </div>
 
         {modelOverrides.length === 0 ? (
           <EmptyState
             icon={<Route className="size-5" />}
-            title="No model overrides"
-            description="Models without an override fall back to the global policy."
+            title="暂无模型覆盖策略"
+            description="没有覆盖策略的模型会回退到全局策略。"
           />
         ) : (
           <div className="space-y-2">
@@ -208,14 +207,14 @@ export default function RouterPage() {
                     {statusBadge(o.enabled)}
                     {paramCount(o) > 0 && (
                       <span className="text-xs text-muted-foreground">
-                        params: {paramCount(o)}
+                        参数：{paramCount(o)}
                       </span>
                     )}
                   </div>
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Edit override"
+                    aria-label="编辑覆盖策略"
                     onClick={() => openModel(o)}
                   >
                     <Pencil className="size-3.5" />

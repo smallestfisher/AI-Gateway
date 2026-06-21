@@ -17,14 +17,14 @@ export function profileColumns({
   return [
     {
       accessorKey: "name",
-      header: "Name",
+      header: "名称",
       cell: ({ row }) => (
         <span className="font-medium">{row.original.name}</span>
       ),
     },
     {
       accessorKey: "scope",
-      header: "Scope",
+      header: "作用域",
       cell: ({ row }) => (
         <Badge variant="outline" className="font-mono text-[11px]">
           {row.original.scope}
@@ -33,7 +33,7 @@ export function profileColumns({
     },
     {
       id: "target",
-      header: "Target",
+      header: "目标",
       cell: ({ row }) => {
         const p = row.original;
         if (p.scope === "default" || !p.target_id) {
@@ -48,7 +48,7 @@ export function profileColumns({
     },
     {
       id: "impersonation",
-      header: "Impersonation",
+      header: "伪装内容",
       cell: ({ row }) => {
         const p = row.original;
         const bits: string[] = [];
@@ -58,7 +58,7 @@ export function profileColumns({
         if (p.headers && Object.keys(p.headers).length) bits.push("Headers");
         if (bits.length === 0)
           return (
-            <span className="text-xs text-muted-foreground">none</span>
+            <span className="text-xs text-muted-foreground">无</span>
           );
         return (
           <div className="flex flex-wrap gap-1">
@@ -73,16 +73,16 @@ export function profileColumns({
     },
     {
       id: "strip",
-      header: "Strip client",
+      header: "剥离客户端头",
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
-          {row.original.strip_client_headers ? "yes" : "no"}
+          {row.original.strip_client_headers ? "是" : "否"}
         </span>
       ),
     },
     {
       id: "status",
-      header: "Status",
+      header: "状态",
       cell: ({ row }) => (
         <Badge variant={row.original.enabled ? "default" : "secondary"}>
           <span
@@ -90,19 +90,19 @@ export function profileColumns({
               row.original.enabled ? "bg-emerald-500" : "bg-muted-foreground"
             }`}
           />
-          {row.original.enabled ? "enabled" : "disabled"}
+          {row.original.enabled ? "已启用" : "已停用"}
         </Badge>
       ),
     },
     {
       id: "actions",
-      header: () => <span className="sr-only">Actions</span>,
+      header: () => <span className="sr-only">操作</span>,
       cell: ({ row }) => (
         <div className="flex justify-end gap-1">
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label="Delete"
+            aria-label="删除"
             onClick={() => onDelete(row.original)}
           >
             <Trash2 className="size-3.5 text-destructive" />

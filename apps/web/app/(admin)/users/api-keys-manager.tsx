@@ -29,10 +29,13 @@ export function APIKeysManager({
   const [newKeyName, setNewKeyName] = useState("");
   const [newlyIssuedKey, setNewlyIssuedKey] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState(false);
+  const [copiedExistingKey, setCopiedExistingKey] = useState<string | null>(
+    null
+  );
 
   const handleIssue = async () => {
     if (!newKeyName.trim()) {
-      toast.error("Key name is required");
+      toast.error("请输入密钥名称");
       return;
     }
     setIsIssuing(true);
@@ -40,64 +43,84 @@ export function APIKeysManager({
       const result = await onIssue(newKeyName);
       setNewlyIssuedKey(result.key);
       setNewKeyName("");
-      toast.success("API key issued successfully");
-    } catch (error) {
-      toast.error("Failed to issue API key");
+      toast.success("API 密钥已发放");
+    } catch {
+      toast.error("发放 API 密钥失败");
     } finally {
       setIsIssuing(false);
     }
   };
 
-  const handleCopy = async () => {
-    if (newlyIssuedKey) {
+  const handleCopyIssuedKey = async () => {
+    if (!newlyIssuedKey) return;
+    try {
       await navigator.clipboard.writeText(newlyIssuedKey);
       setCopiedKey(true);
-      toast.success("Copied to clipboard");
+      toast.success("完整 API 密钥已复制");
       setTimeout(() => setCopiedKey(false), 2000);
+    } catch {
+      toast.error("复制失败，请手动复制");
+    }
+  };
+
+  const handleCopyExistingKey = async (key: APIKey) => {
+    if (!key.key) {
+      toast.error("旧密钥无法恢复完整值，请重新发放");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(key.key);
+      setCopiedExistingKey(key.id ?? key.key_prefix);
+      toast.success("完整 API 密钥已复制");
+      setTimeout(() => setCopiedExistingKey(null), 2000);
+    } catch {
+      toast.error("复制失败，请手动复制");
     }
   };
 
   const handleRevoke = async (keyId: string) => {
-    if (!confirm("Are you sure you want to revoke this API key?")) return;
+    if (!confirm("确定要撤销这个 API 密钥吗？")) return;
     try {
       await onRevoke(keyId);
-      toast.success("API key revoked");
-    } catch (error) {
-      toast.error("Failed to revoke API key");
+      toast.success("API 密钥已撤销");
+    } catch {
+      toast.error("撤销 API 密钥失败");
     }
   };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-lg font-medium mb-1">
-          API Keys for {user.name}
+    <div className="min-w-0 space-y-4 px-4 pb-4">
+      <div className="min-w-0">
+        <h3 className="mb-1 break-words text-lg font-medium">
+          {user.name} 的 API 密钥
         </h3>
         <p className="text-sm text-muted-foreground">
-          Manage API keys for this user
+          管理该用户的 API 密钥
         </p>
       </div>
 
       {newlyIssuedKey && (
         <Card className="border-terracotta bg-terracotta/5">
           <CardHeader>
-            <CardTitle className="text-base">New API Key Issued</CardTitle>
+            <CardTitle className="text-base">新 API 密钥已发放</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Copy this key now — it won't be shown again.
+              请立即复制此密钥，关闭后将不再显示。
             </p>
-            <div className="flex gap-2">
+            <div className="flex min-w-0 gap-2">
               <Input
                 value={newlyIssuedKey}
                 readOnly
-                className="font-mono text-sm"
+                className="min-w-0 font-mono text-sm"
               />
               <Button
                 variant="outline"
                 size="icon"
-                onClick={handleCopy}
+                onClick={handleCopyIssuedKey}
                 className="shrink-0"
+                title="复制完整密钥"
+                aria-label="复制完整密钥"
               >
                 {copiedKey ? (
                   <Check className="h-4 w-4" />
@@ -111,43 +134,49 @@ export function APIKeysManager({
               onClick={() => setNewlyIssuedKey(null)}
               className="w-full"
             >
-              Done
+              完成
             </Button>
           </CardContent>
         </Card>
       )}
 
       <div className="space-y-3">
-        <h4 className="text-sm font-medium">Issue New Key</h4>
-        <div className="flex gap-2">
-          <Field label="" className="flex-1 mb-0">
+        <h4 className="text-sm font-medium">发放新密钥</h4>
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
+          <Field label="" className="mb-0 min-w-0 flex-1">
             <Input
-              placeholder="Key name (e.g., Production)"
+              placeholder="密钥名称（例如 Production）"
               value={newKeyName}
               onChange={(e) => setNewKeyName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleIssue()}
             />
           </Field>
-          <Button onClick={handleIssue} disabled={isIssuing}>
-            {isIssuing ? "Issuing..." : "Issue Key"}
+          <Button
+            onClick={handleIssue}
+            disabled={isIssuing}
+            className="w-full sm:w-auto"
+          >
+            {isIssuing ? "发放中..." : "发放密钥"}
           </Button>
         </div>
       </div>
 
       <div className="space-y-3">
-        <h4 className="text-sm font-medium">Existing Keys ({keys.length})</h4>
+        <h4 className="text-sm font-medium">现有密钥（{keys.length}）</h4>
         {keys.length === 0 ? (
           <p className="text-sm text-muted-foreground py-8 text-center">
-            No API keys yet
+            暂无 API 密钥
           </p>
         ) : (
           <div className="space-y-2">
             {keys.map((key) => (
               <Card key={key.id}>
-                <CardContent className="flex items-center justify-between p-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{key.name}</span>
+                <CardContent className="flex min-w-0 flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <span className="min-w-0 break-words font-medium">
+                        {key.name}
+                      </span>
                       <Badge
                         variant={
                           key.status === "active" ? "default" : "secondary"
@@ -156,33 +185,58 @@ export function APIKeysManager({
                         {key.status}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                      <span className="font-mono">{key.key_prefix}...</span>
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                      <span className="min-w-0 break-all font-mono">
+                        {key.key || `${key.key_prefix}...`}
+                      </span>
+                      {!key.key && (
+                        <span className="text-xs text-destructive">
+                          完整密钥不可恢复
+                        </span>
+                      )}
                       <span>•</span>
                       <span>
-                        Created{" "}
+                        创建于{" "}
                         {new Date(key.created_at!).toLocaleDateString()}
                       </span>
                       {key.last_used_at && (
                         <>
                           <span>•</span>
                           <span>
-                            Last used{" "}
+                            最近使用{" "}
                             {new Date(key.last_used_at).toLocaleDateString()}
                           </span>
                         </>
                       )}
                     </div>
                   </div>
-                  {key.status === "active" && (
+                  <div className="flex shrink-0 justify-end gap-1">
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleRevoke(key.id!)}
+                      onClick={() => handleCopyExistingKey(key)}
+                      title={key.key ? "复制完整密钥" : "完整密钥不可恢复"}
+                      aria-label={key.key ? "复制完整密钥" : "完整密钥不可恢复"}
+                      disabled={!key.key}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      {copiedExistingKey === (key.id ?? key.key_prefix) ? (
+                        <Check className="h-4 w-4" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
                     </Button>
-                  )}
+                    {key.status === "active" && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRevoke(key.id!)}
+                        title="撤销密钥"
+                        aria-label="撤销密钥"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -192,7 +246,7 @@ export function APIKeysManager({
 
       <div className="flex justify-end pt-4">
         <Button variant="outline" onClick={onClose}>
-          Close
+          关闭
         </Button>
       </div>
     </div>

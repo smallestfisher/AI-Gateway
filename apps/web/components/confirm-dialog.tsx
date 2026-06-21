@@ -17,7 +17,7 @@ export function ConfirmDialog({
   onOpenChange,
   title,
   description,
-  confirmLabel = "Delete",
+  confirmLabel = "删除",
   destructive = true,
   loading = false,
   onConfirm,
@@ -44,7 +44,7 @@ export function ConfirmDialog({
             onClick={() => onOpenChange(false)}
             disabled={loading}
           >
-            Cancel
+            取消
           </Button>
           <Button
             variant={destructive ? "destructive" : "default"}

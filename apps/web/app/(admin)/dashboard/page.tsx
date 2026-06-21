@@ -47,67 +47,69 @@ interface ErrorStat {
 export default function DashboardPage() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ["dashboard", "stats"],
-    queryFn: () => api.get<DashboardStats>("/api/admin/dashboard/stats"),
-    refetchInterval: 30000, // Refresh every 30 seconds
+    queryFn: () => api.get<DashboardStats>("/dashboard/stats"),
+    refetchInterval: 30000,
   });
+  const topModels = stats?.top_models ?? [];
+  const recentErrors = stats?.recent_errors ?? [];
 
   if (isLoading) {
     return (
-      <>
-        <PageHeader title="Dashboard" description="Gateway metrics and insights" />
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="space-y-6">
+        <PageHeader title="仪表盘" description="网关指标与运行概览" />
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
           {[...Array(4)].map((_, i) => (
-            <Card key={i} className="animate-pulse">
+            <Card key={i} className="min-h-36 animate-pulse rounded-lg">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="h-4 w-24 bg-muted rounded" />
+                <div className="h-4 w-24 rounded bg-muted" />
               </CardHeader>
               <CardContent>
-                <div className="h-8 w-16 bg-muted rounded" />
+                <div className="h-8 w-16 rounded bg-muted" />
               </CardContent>
             </Card>
           ))}
         </div>
-      </>
+      </div>
     );
   }
 
   if (!stats) {
     return (
-      <>
-        <PageHeader title="Dashboard" description="Gateway metrics and insights" />
-        <Card>
+      <div className="space-y-6">
+        <PageHeader title="仪表盘" description="网关指标与运行概览" />
+        <Card className="rounded-lg">
           <CardContent className="py-12 text-center text-muted-foreground">
-            No data available yet. Start sending requests to see metrics.
+            暂无数据。发送请求后这里会显示运行指标。
           </CardContent>
         </Card>
-      </>
+      </div>
     );
   }
 
   return (
-    <>
+    <div className="space-y-6">
       <PageHeader
-        title="Dashboard"
-        description={`Last ${stats.period} • Updates every 30s`}
+        title="仪表盘"
+        description={`最近 ${stats.period}，每 30 秒自动刷新`}
       />
 
-      {/* Top-level metrics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stats.total_requests.toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
+      <div className="space-y-6">
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+          <Card className="min-h-36 rounded-lg">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">总请求数</CardTitle>
+              <Activity className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {stats.total_requests.toLocaleString()}
+              </div>
+            </CardContent>
+          </Card>
 
-        <Card>
+        <Card className="min-h-36 rounded-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+            <CardTitle className="text-sm font-medium">活跃用户</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -115,9 +117,9 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="min-h-36 rounded-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Latency</CardTitle>
+            <CardTitle className="text-sm font-medium">平均延迟</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -128,9 +130,9 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="min-h-36 rounded-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
+            <CardTitle className="text-sm font-medium">成功率</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -141,44 +143,42 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Secondary metrics */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="min-h-32 rounded-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Providers</CardTitle>
+            <CardTitle className="text-sm font-medium">供应商</CardTitle>
             <Server className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.provider_count}</div>
-            <p className="text-xs text-muted-foreground">Active providers</p>
+            <p className="text-xs text-muted-foreground">已启用供应商</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="min-h-32 rounded-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Models</CardTitle>
+            <CardTitle className="text-sm font-medium">模型</CardTitle>
             <Boxes className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.model_count}</div>
-            <p className="text-xs text-muted-foreground">Available models</p>
+            <p className="text-xs text-muted-foreground">可用模型别名</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Top models */}
-      <Card>
+      <Card className="rounded-lg">
         <CardHeader>
-          <CardTitle>Top Models</CardTitle>
+          <CardTitle>热门模型</CardTitle>
         </CardHeader>
         <CardContent>
-          {stats.top_models.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              No model usage yet
+          {topModels.length === 0 ? (
+            <p className="flex min-h-28 items-center justify-center text-center text-sm text-muted-foreground">
+              暂无模型调用
             </p>
           ) : (
             <div className="space-y-3">
-              {stats.top_models.map((model) => (
+              {topModels.map((model) => (
                 <div key={model.model} className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
@@ -188,11 +188,11 @@ export default function DashboardPage() {
                       </Badge>
                     </div>
                     <div className="mt-1 flex items-center gap-4 text-xs text-muted-foreground">
-                      <span>{model.requests.toLocaleString()} requests</span>
+                      <span>{model.requests.toLocaleString()} 次请求</span>
                       <span>•</span>
-                      <span>{Math.round(model.avg_latency_ms)}ms avg</span>
+                      <span>平均 {Math.round(model.avg_latency_ms)}ms</span>
                       <span>•</span>
-                      <span>{model.success_rate.toFixed(1)}% success</span>
+                      <span>成功率 {model.success_rate.toFixed(1)}%</span>
                     </div>
                   </div>
                 </div>
@@ -202,22 +202,21 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* Recent errors */}
-      <Card>
+      <Card className="rounded-lg">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertCircle className="h-4 w-4" />
-            Recent Errors
+            最近错误
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {stats.recent_errors.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              No errors in the last {stats.period} 🎉
+          {recentErrors.length === 0 ? (
+            <p className="flex min-h-28 items-center justify-center text-center text-sm text-muted-foreground">
+              最近 {stats.period} 没有错误
             </p>
           ) : (
             <div className="space-y-3">
-              {stats.recent_errors.map((err, i) => (
+              {recentErrors.map((err, i) => (
                 <div key={i} className="border-l-2 border-destructive pl-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 space-y-1">
@@ -239,6 +238,7 @@ export default function DashboardPage() {
           )}
         </CardContent>
       </Card>
-    </>
+      </div>
+    </div>
   );
 }

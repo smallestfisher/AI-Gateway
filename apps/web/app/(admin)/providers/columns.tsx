@@ -16,14 +16,14 @@ export function providerColumns({
   return [
     {
       accessorKey: "name",
-      header: "Name",
+      header: "名称",
       cell: ({ row }) => (
         <span className="font-medium">{row.original.name}</span>
       ),
     },
     {
       accessorKey: "base_url",
-      header: "Base URL",
+      header: "基础 URL",
       cell: ({ row }) => (
         <span className="font-mono text-xs text-muted-foreground">
           {row.original.base_url}
@@ -32,7 +32,7 @@ export function providerColumns({
     },
     {
       accessorKey: "protocol",
-      header: "Protocol",
+      header: "协议",
       cell: ({ row }) => (
         <Badge variant="outline" className="font-mono text-[11px]">
           {row.original.protocol}
@@ -41,7 +41,7 @@ export function providerColumns({
     },
     {
       id: "status",
-      header: "Status",
+      header: "状态",
       cell: ({ row }) => (
         <Badge variant={row.original.enabled ? "default" : "secondary"}>
           <span
@@ -49,13 +49,13 @@ export function providerColumns({
               row.original.enabled ? "bg-emerald-500" : "bg-muted-foreground"
             }`}
           />
-          {row.original.enabled ? "enabled" : "disabled"}
+          {row.original.enabled ? "已启用" : "已停用"}
         </Badge>
       ),
     },
     {
       accessorKey: "weight",
-      header: "Weight",
+      header: "权重",
       cell: ({ row }) => (
         <span className="tabular-nums text-muted-foreground">
           {row.original.weight}
@@ -64,7 +64,7 @@ export function providerColumns({
     },
     {
       accessorKey: "priority",
-      header: "Priority",
+      header: "优先级",
       cell: ({ row }) => (
         <span className="tabular-nums text-muted-foreground">
           {row.original.priority}
@@ -73,13 +73,13 @@ export function providerColumns({
     },
     {
       id: "actions",
-      header: () => <span className="sr-only">Actions</span>,
+      header: () => <span className="sr-only">操作</span>,
       cell: ({ row }) => (
         <div className="flex justify-end gap-1">
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label="Edit"
+            aria-label="编辑"
             onClick={() => onEdit(row.original)}
           >
             <Pencil className="size-3.5" />
@@ -87,7 +87,7 @@ export function providerColumns({
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label="Delete"
+            aria-label="删除"
             onClick={() => onDelete(row.original)}
           >
             <Trash2 className="size-3.5 text-destructive" />

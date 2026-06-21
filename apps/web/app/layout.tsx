@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI Agent Gateway",
-  description: "Admin console for the AI Agent Gateway",
+  title: "AI Gateway 管理台",
+  description: "AI Gateway 管理控制台",
 };
 
 export default function RootLayout({

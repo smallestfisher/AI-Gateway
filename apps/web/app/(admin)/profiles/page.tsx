@@ -61,16 +61,16 @@ export default function ProfilesPage() {
 
   async function createProfile(body: Partial<ClientProfile>) {
     await profiles.create.mutateAsync(body);
-    toast.success("Profile created");
+    toast.success("客户端伪装配置已创建");
   }
 
   async function confirmDelete() {
     if (!pendingDelete?.id) return;
     try {
       await profiles.remove.mutateAsync(pendingDelete.id);
-      toast.success("Profile deleted");
+      toast.success("客户端伪装配置已删除");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Delete failed");
+      toast.error(e instanceof Error ? e.message : "删除失败");
     } finally {
       setPendingDelete(null);
     }
@@ -84,12 +84,12 @@ export default function ProfilesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Client Profiles"
-        description="Egress impersonation profiles — headers/UA injected on the upstream's behalf, scoped globally, per provider, or per model."
+        title="客户端伪装"
+        description="为上游请求注入 Header / UA，可按全局、供应商或模型生效。"
         actions={
           <Button size="sm" onClick={openForm}>
             <Plus className="size-4" />
-            New profile
+            新建配置
           </Button>
         }
       />
@@ -98,16 +98,16 @@ export default function ProfilesPage() {
         columns={columns}
         data={profiles.list.data ?? []}
         loading={profiles.list.isLoading}
-        searchPlaceholder="Search profiles…"
+        searchPlaceholder="搜索伪装配置..."
         empty={
           <EmptyState
             icon={<ShieldCheck className="size-5" />}
-            title="No profiles yet"
-            description="Create an impersonation profile to control how requests present to upstreams."
+            title="暂无伪装配置"
+            description="创建配置后可控制请求呈现给上游的 Header 与客户端信息。"
             action={
               <Button size="sm" onClick={openForm}>
                 <Plus className="size-4" />
-                New profile
+                新建配置
               </Button>
             }
           />
@@ -127,9 +127,9 @@ export default function ProfilesPage() {
       <ConfirmDialog
         open={pendingDelete !== null}
         onOpenChange={(o) => !o && setPendingDelete(null)}
-        title={`Delete “${pendingDelete?.name}”?`}
-        description="Requests in this scope will fall back to less specific profiles."
-        confirmLabel="Delete profile"
+        title={`删除“${pendingDelete?.name}”？`}
+        description="该作用域内的请求会回退到更低优先级的伪装配置。"
+        confirmLabel="删除配置"
         loading={profiles.remove.isPending}
         onConfirm={confirmDelete}
       />

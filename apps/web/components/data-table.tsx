@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 export function DataTable<TData, TValue>({
   columns,
   data,
-  searchPlaceholder = "Search…",
+  searchPlaceholder = "搜索...",
   pageSize = 20,
   toolbar,
   empty,
@@ -63,7 +63,7 @@ export function DataTable<TData, TValue>({
           e.stopPropagation();
           row.toggleExpanded();
         }}
-        aria-label={row.getIsExpanded() ? "Collapse row" : "Expand row"}
+        aria-label={row.getIsExpanded() ? "收起行" : "展开行"}
         className="flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted"
       >
         <ChevronRight
@@ -172,7 +172,7 @@ export function DataTable<TData, TValue>({
                   colSpan={tableColumns.length}
                   className="h-32 text-center text-sm text-muted-foreground"
                 >
-                  {empty ?? "No results."}
+                  {empty ?? "暂无结果"}
                 </TableCell>
               </TableRow>
             )}
@@ -183,7 +183,7 @@ export function DataTable<TData, TValue>({
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>
           {table.getFilteredRowModel().rows.length}{" "}
-          {table.getFilteredRowModel().rows.length === 1 ? "row" : "rows"}
+          条记录
         </span>
         <div className="flex items-center gap-2">
           <Button
@@ -193,7 +193,7 @@ export function DataTable<TData, TValue>({
             disabled={!table.getCanPreviousPage()}
           >
             <ChevronLeft className="size-4" />
-            Prev
+            上一页
           </Button>
           <span>
             {table.getState().pagination.pageIndex + 1} /{" "}
@@ -205,7 +205,7 @@ export function DataTable<TData, TValue>({
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
           >
-            Next
+            下一页
             <ChevronRight className="size-4" />
           </Button>
         </div>

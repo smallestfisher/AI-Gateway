@@ -29,7 +29,7 @@ export function Topbar() {
           <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500/60" />
           <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
         </span>
-        Gateway online
+        网关在线
       </div>
 
       <div className="flex items-center gap-1.5">
@@ -42,7 +42,7 @@ export function Topbar() {
         <Button
           variant="ghost"
           size="icon"
-          aria-label="Sign out"
+          aria-label="退出登录"
           onClick={logout}
         >
           <LogOut className="size-4" />

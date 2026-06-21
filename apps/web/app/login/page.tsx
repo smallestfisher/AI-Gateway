@@ -28,13 +28,13 @@ function LoginForm() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error?.message ?? "Login failed");
+        throw new Error(body?.error?.message ?? "登录失败");
       }
       const next = params.get("next") || "/providers";
       router.replace(next);
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Login failed");
+      toast.error(err instanceof Error ? err.message : "登录失败");
       setLoading(false);
     }
   }
@@ -53,7 +53,7 @@ function LoginForm() {
               AI Agent Gateway
             </h1>
             <p className="text-sm text-muted-foreground">
-              Sign in with your admin token
+              使用管理员 Token 登录
             </p>
           </div>
         </div>
@@ -63,7 +63,7 @@ function LoginForm() {
           className="space-y-4 rounded-xl border bg-card p-6 shadow-sm"
         >
           <div className="space-y-2">
-            <Label htmlFor="token">Admin token</Label>
+            <Label htmlFor="token">管理员 Token</Label>
             <Input
               id="token"
               type="password"
@@ -77,17 +77,16 @@ function LoginForm() {
           </div>
           {expired && (
             <p className="text-xs text-destructive">
-              Your session expired. Please sign in again.
+              会话已过期，请重新登录。
             </p>
           )}
           <Button type="submit" className="w-full" disabled={loading}>
             {loading && <Loader2 className="size-4 animate-spin" />}
-            Sign in
+            登录
           </Button>
         </form>
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          The token is verified against the gateway and stored in an httpOnly
-          cookie.
+          Token 会交由网关验证，并保存在 httpOnly Cookie 中。
         </p>
       </div>
     </div>
@@ -107,7 +106,7 @@ function LoginFallback() {
               AI Agent Gateway
             </h1>
             <p className="text-sm text-muted-foreground">
-              Sign in with your admin token
+              使用管理员 Token 登录
             </p>
           </div>
         </div>

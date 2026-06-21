@@ -23,31 +23,31 @@ type NavItem = {
 
 const SECTIONS: { heading: string; items: NavItem[] }[] = [
   {
-    heading: "Overview",
+    heading: "概览",
     items: [
-      { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard className="size-4" /> },
+      { href: "/dashboard", label: "仪表盘", icon: <LayoutDashboard className="size-4" /> },
     ],
   },
   {
-    heading: "Configuration",
+    heading: "配置",
     items: [
-      { href: "/providers", label: "Providers", icon: <Network className="size-4" /> },
-      { href: "/models", label: "Models", icon: <Boxes className="size-4" /> },
-      { href: "/profiles", label: "Client Profiles", icon: <ShieldCheck className="size-4" /> },
-      { href: "/router", label: "Router", icon: <Route className="size-4" /> },
+      { href: "/providers", label: "供应商", icon: <Network className="size-4" /> },
+      { href: "/models", label: "模型", icon: <Boxes className="size-4" /> },
+      { href: "/profiles", label: "客户端伪装", icon: <ShieldCheck className="size-4" /> },
+      { href: "/router", label: "路由策略", icon: <Route className="size-4" /> },
     ],
   },
   {
-    heading: "Access",
+    heading: "访问",
     items: [
-      { href: "/users", label: "Users & Keys", icon: <KeyRound className="size-4" /> },
+      { href: "/users", label: "用户与密钥", icon: <KeyRound className="size-4" /> },
     ],
   },
   {
-    heading: "Observability",
+    heading: "可观测",
     items: [
-      { href: "/logs", label: "Logs", icon: <ScrollText className="size-4" />, disabled: true },
-      { href: "/health", label: "Health", icon: <Activity className="size-4" />, disabled: true },
+      { href: "/logs", label: "请求日志", icon: <ScrollText className="size-4" /> },
+      { href: "/health", label: "健康状态", icon: <Activity className="size-4" />, disabled: true },
     ],
   },
 ];
@@ -83,11 +83,11 @@ export function AppSidebar() {
                 return (
                   <span
                     key={item.href}
-                    title="Coming in a later phase"
+                    title="后续阶段开放"
                     className="flex cursor-not-allowed items-center justify-between rounded-md px-2 py-1.5 text-sm text-muted-foreground/50"
                   >
                     {content}
-                    <span className="text-[10px] uppercase">soon</span>
+                    <span className="text-[10px] uppercase">稍后</span>
                   </span>
                 );
               }
