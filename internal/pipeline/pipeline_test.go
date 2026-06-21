@@ -11,6 +11,7 @@ import (
 	"github.com/aigateway/ai-hub/internal/adapter"
 	"github.com/aigateway/ai-hub/internal/adapter/anthropicmessages"
 	"github.com/aigateway/ai-hub/internal/adapter/openaichat"
+	"github.com/aigateway/ai-hub/internal/adapter/openairesponses"
 	"github.com/aigateway/ai-hub/internal/egress"
 	"github.com/aigateway/ai-hub/internal/ir"
 	"github.com/aigateway/ai-hub/internal/registry"
@@ -24,11 +25,15 @@ func newPipeline(t *testing.T, channels ...*registry.Channel) *Pipeline {
 		b.AddChannel(c)
 	}
 	src := registry.NewStatic(b.Build())
-	return New(router.New(src), egress.New(adapter.NewRegistry(openaichat.New(), anthropicmessages.New())))
+	return New(router.New(src), egress.New(adapter.NewRegistry(openaichat.New(), anthropicmessages.New(), openairesponses.New())))
 }
 
 func chatProvider(id, baseURL string) *registry.Provider {
 	return &registry.Provider{ID: id, Name: id, Protocol: adapter.ProtocolChat, BaseURL: baseURL, APIKey: "sk"}
+}
+
+func responsesProvider(id, baseURL string) *registry.Provider {
+	return &registry.Provider{ID: id, Name: id, Protocol: adapter.ProtocolResponses, BaseURL: baseURL, APIKey: "sk"}
 }
 
 // --- non-streaming ---
@@ -148,6 +153,68 @@ func TestRunStream_TextThroughChatUpstream(t *testing.T) {
 	}
 	if stopReason != ir.StopEndTurn {
 		t.Errorf("stop = %s", stopReason)
+	}
+}
+
+// a fake OpenAI Responses streaming upstream: a text message item, then a
+// function_call item whose arguments are split across two deltas. This is the
+// Codex egress path (pipeline -> egress -> responses.BuildUpstream -> SSE).
+func responsesStreamServer() *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher, _ := w.(http.Flusher)
+		write := func(s string) { fmt.Fprint(w, s); if flusher != nil { flusher.Flush() } }
+		write(`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-4o","status":"in_progress"}}` + "\n\n")
+		write(`data: {"type":"response.output_item.added","output_index":0,"item":{"id":"msg_1","type":"message","status":"in_progress","role":"assistant","content":[]}}` + "\n\n")
+		write(`data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"Let me "}` + "\n\n")
+		write(`data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"check"}` + "\n\n")
+		write(`data: {"type":"response.output_item.done","output_index":0,"item":{"id":"msg_1","type":"message","status":"completed","role":"assistant","content":[{"type":"output_text","text":"Let me check"}]}}` + "\n\n")
+		write(`data: {"type":"response.output_item.added","output_index":1,"item":{"id":"fc_1","type":"function_call","status":"in_progress","name":"get_weather","call_id":"call_w","arguments":""}}` + "\n\n")
+		write(`data: {"type":"response.function_call_arguments.delta","output_index":1,"item_id":"fc_1","delta":"{\"city\":"}` + "\n\n")
+		write(`data: {"type":"response.function_call_arguments.delta","output_index":1,"item_id":"fc_1","delta":"\"Paris\"}"}` + "\n\n")
+		write(`data: {"type":"response.output_item.done","output_index":1,"item":{"id":"fc_1","type":"function_call","status":"completed","name":"get_weather","call_id":"call_w","arguments":"{\"city\":\"Paris\"}"}}` + "\n\n")
+		write(`data: {"type":"response.completed","response":{"id":"resp_1","model":"gpt-4o","status":"completed","usage":{"input_tokens":4,"output_tokens":2}}}` + "\n\n")
+	}))
+}
+
+// End-to-end: a Responses streaming upstream must decode through the full egress
+// stack into IR events — text reassembled, the tool call's split arguments
+// rejoined, stop_reason tool_use, and usage captured.
+func TestRunStream_ToolCallThroughResponsesUpstream(t *testing.T) {
+	srv := responsesStreamServer()
+	defer srv.Close()
+	p := newPipeline(t, &registry.Channel{Alias: "m", UpstreamModel: "gpt-4o", Provider: responsesProvider("p1", srv.URL)})
+	evs := collectStream(t, p, &ir.UnifiedRequest{Model: "m", Stream: true,
+		Messages: []ir.Message{{Role: ir.RoleUser, Blocks: []ir.Block{{Type: ir.BlockText, Text: "weather?"}}}}})
+
+	var text, args string
+	var stopReason ir.StopReason
+	var usage *ir.Usage
+	for _, e := range evs {
+		if e.Type == ir.EvBlockDelta && e.Delta != nil {
+			if e.Delta.Type == ir.DeltaText {
+				text += e.Delta.Text
+			}
+			if e.Delta.Type == ir.DeltaInputJSON {
+				args += e.Delta.PartialJSON
+			}
+		}
+		if e.Type == ir.EvMessageDelta {
+			stopReason = e.StopReason
+			usage = e.Usage
+		}
+	}
+	if text != "Let me check" {
+		t.Errorf("text = %q", text)
+	}
+	if args != `{"city":"Paris"}` {
+		t.Errorf("tool args = %q", args)
+	}
+	if stopReason != ir.StopToolUse {
+		t.Errorf("stop = %s", stopReason)
+	}
+	if usage == nil || usage.InputTokens != 4 || usage.OutputTokens != 2 {
+		t.Errorf("usage = %+v", usage)
 	}
 }
 

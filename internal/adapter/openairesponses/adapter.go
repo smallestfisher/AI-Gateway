@@ -9,7 +9,6 @@ package openairesponses
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strings"
 
@@ -557,6 +556,3 @@ func jsonEscape(s string) string {
 	b, _ := json.Marshal(s)
 	return string(b[1 : len(b)-1])
 }
-
-// errStreamingNotImpl is returned by the streaming stubs (follow-up).
-var errStreamingNotImpl = errors.New("openairesponses: streaming not implemented in this phase")

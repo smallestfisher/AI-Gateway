@@ -10,15 +10,16 @@ The hub is a **Unified IR (block model)** — not Chat Completions. Each protoco
 implements one bidirectional **Adapter**; adding a protocol changes no core code.
 
 > **Status:** Phase 0–5 (core) done — Unified IR, the adapter framework,
-> `openai_chat` + `anthropic_messages` adapters (non-streaming **and** streaming,
-> lossless cross-protocol), Router (failover/weighted) with a **Redis-backed
-> circuit breaker**, Egress (real upstream calls, TTFT sampling, retries,
+> `openai_chat` + `anthropic_messages` + `openai_responses` adapters (non-streaming
+> **and** streaming, lossless cross-protocol), Router (failover/weighted) with a
+> **Redis-backed circuit breaker**, Egress (real upstream calls, TTFT sampling, retries,
 > Client-Profile injection, streaming), the Pipeline (pre-first-byte failover),
 > a live Fiber ingress, a **PostgreSQL-backed config Registry with Redis
 > hot-reload**, an **Admin API (CRUD + hot-reload + user/key issuance)**, and
 > **proxy auth (API keys + RPM limiting + token-quota billing + model
-> whitelist)**. The gateway is now an externally-usable, metered service. Admin
-> web UI, the Responses adapter (Codex), and the log center / simulator remain.
+> whitelist)**. The gateway is now an externally-usable, metered service, and
+> Codex CLI works via `/v1/responses` (text + tool calls + reasoning, streamed).
+> Admin web UI and the log center / simulator remain.
 > See [`docs/11-roadmap.md`](docs/11-roadmap.md).
 
 Full design: [`docs/`](docs/) (start at [`docs/README.md`](docs/README.md)).
@@ -33,7 +34,7 @@ docker compose up --build
 
 # 2. Health check
 curl http://localhost:8080/healthz
-# => {"protocols":["openai_chat","anthropic_messages"],"status":"ok"}
+# => {"protocols":["openai_chat","anthropic_messages","openai_responses"],"status":"ok"}
 
 # 3. Local dev (no docker): just run the binary
 go run ./cmd/gateway
@@ -70,6 +71,7 @@ internal/
   adapter/                Adapter interface + registry (docs/04)
     openaichat/           OpenAI Chat adapter (non-stream + stream)
     anthropicmessages/    Anthropic Messages adapter (non-stream + stream)
+    openairesponses/      OpenAI Responses adapter (Codex) (non-stream + stream)
     crossprotocol/        lossless cross-protocol round-trip tests
   router/                 alias -> channels, failover/weighted selection (docs/02 §2)
   registry/               in-memory config snapshot + Source (docs/02 §4)
@@ -119,6 +121,12 @@ Dockerfile, docker-compose.yml
 - ✅ **Proxy auth**: API-key resolution (DB + Redis cache), RPM rate limiting
   (Redis fixed window), per-user token-quota billing (Redis balance, lazy-DB
   init, deduct by usage), and model whitelist. Statuses: 401 / 403 / 402 / 429.
+- ✅ **Responses adapter (Codex)**: `openai_responses` decodes/encodes the
+  flat-item model (message / function_call / function_call_output / reasoning),
+  both non-streaming and streaming (item-lifecycle ↔ IR block-lifecycle state
+  machines, split tool-argument reassembly, reasoning-signature persistence,
+  incomplete→max_tokens). Lossless cross-protocol round-trips validated against
+  Chat and Messages.
 - ✅ Per-protocol error envelopes; model-not-found / bad-request / no-channel
   return the right status and shape.
 - ✅ DB schema (16 tables) — migration verified against real Postgres.
@@ -126,5 +134,5 @@ Dockerfile, docker-compose.yml
 
 ## Next (Phase 6+)
 
-Admin **web UI** (Next.js on top of the Admin API), the **Responses adapter**
-(Codex CLI), and the log center / request simulator. See `docs/11-roadmap.md`.
+Admin **web UI** (Next.js on top of the Admin API), and the log center /
+request simulator. The Responses adapter (Codex) is done. See `docs/11-roadmap.md`.

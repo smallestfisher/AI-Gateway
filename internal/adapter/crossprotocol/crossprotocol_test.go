@@ -11,12 +11,14 @@ import (
 	"github.com/aigateway/ai-hub/internal/adapter"
 	"github.com/aigateway/ai-hub/internal/adapter/anthropicmessages"
 	"github.com/aigateway/ai-hub/internal/adapter/openaichat"
+	"github.com/aigateway/ai-hub/internal/adapter/openairesponses"
 	"github.com/aigateway/ai-hub/internal/ir"
 )
 
 var (
 	chat = openaichat.New()
 	msg  = anthropicmessages.New()
+	resp = openairesponses.New()
 	hdr  = http.Header{}
 )
 
@@ -260,9 +262,190 @@ func TestChatResponseToAnthropicClient(t *testing.T) {
 	}
 }
 
-// Registry wires both adapters and resolves by path (sanity for the dispatch layer).
+// Responses request -> IR -> Messages upstream: a Codex-style Responses
+// request (instructions + user message + assistant function_call + tool output)
+// must survive translation into an Anthropic Messages body, with the tool-call
+// id pairing and system prompt intact.
+func TestResponsesRequestToMessagesUpstream(t *testing.T) {
+	responsesReq := mustJSON(t, map[string]any{
+		"model":        "gpt-4o",
+		"instructions": "you are helpful",
+		"input": []map[string]any{
+			{"type": "message", "role": "user", "content": []map[string]any{{"type": "input_text", "text": "weather?"}}},
+			{"type": "function_call", "call_id": "c1", "name": "get_weather", "arguments": `{"city":"Paris"}`},
+			{"type": "function_call_output", "call_id": "c1", "output": "Paris 18C"},
+		},
+		"tools": []map[string]any{{"type": "function", "name": "get_weather", "parameters": map[string]any{"type": "object"}}},
+	})
+
+	ireq, err := resp.DecodeRequest(responsesReq, hdr)
+	if err != nil {
+		t.Fatalf("responses decode: %v", err)
+	}
+	if ireq.Model != "gpt-4o" {
+		t.Errorf("model = %q", ireq.Model)
+	}
+	if len(ireq.System) != 1 || ireq.System[0].Text != "you are helpful" {
+		t.Errorf("instructions -> system lost: %+v", ireq.System)
+	}
+
+	up, err := msg.BuildUpstream(ireq, "claude-real")
+	if err != nil {
+		t.Fatalf("messages build: %v", err)
+	}
+	back, err := msg.DecodeRequest(up.Body, hdr)
+	if err != nil {
+		t.Fatalf("messages decode of upstream body: %v", err)
+	}
+	if back.Model != "claude-real" {
+		t.Errorf("model = %q", back.Model)
+	}
+	if len(back.System) != 1 || back.System[0].Text != "you are helpful" {
+		t.Errorf("system lost across hop: %+v", back.System)
+	}
+	// assistant tool_use survived with id pairing
+	var asst, res *ir.Message
+	for i := range back.Messages {
+		switch back.Messages[i].Role {
+		case ir.RoleAssistant:
+			asst = &back.Messages[i]
+		case ir.RoleUser:
+			if len(back.Messages[i].Blocks) > 0 && back.Messages[i].Blocks[0].Type == ir.BlockToolResult {
+				res = &back.Messages[i]
+			}
+		}
+	}
+	if asst == nil || len(asst.Blocks) != 1 || asst.Blocks[0].Type != ir.BlockToolUse ||
+		asst.Blocks[0].ToolCall.ID != "c1" || asst.Blocks[0].ToolCall.Name != "get_weather" {
+		t.Errorf("assistant tool_use lost: %+v", asst)
+	}
+	if res == nil || len(res.Blocks) != 1 || res.Blocks[0].Type != ir.BlockToolResult ||
+		res.Blocks[0].ToolResult.ToolUseID != "c1" {
+		t.Errorf("tool result lost: %+v", res)
+	}
+}
+
+// Chat upstream response -> Responses client: tool_calls must become a
+// function_call output item on a Responses response object.
+func TestChatResponseToResponsesClient(t *testing.T) {
+	chatResp := mustJSON(t, map[string]any{
+		"id": "cc-1", "object": "chat.completion", "model": "gpt-4o",
+		"choices": []map[string]any{{
+			"index": 0,
+			"message": map[string]any{
+				"role": "assistant",
+				"content": "let me check",
+				"tool_calls": []map[string]any{
+					{"id": "cx", "type": "function", "function": map[string]any{"name": "f", "arguments": `{"a":1}`}},
+				},
+			},
+			"finish_reason": "tool_calls",
+		}},
+		"usage": map[string]any{"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3},
+	})
+	iresp, err := chat.DecodeUpstreamResponse(chatResp)
+	if err != nil {
+		t.Fatalf("chat decode response: %v", err)
+	}
+	if iresp.StopReason != ir.StopToolUse {
+		t.Fatalf("stop = %s", iresp.StopReason)
+	}
+	respBody, err := resp.EncodeResponse(iresp)
+	if err != nil {
+		t.Fatalf("responses encode response: %v", err)
+	}
+	// decode the responses body back and assert the function_call item survived
+	back, err := resp.DecodeUpstreamResponse(respBody)
+	if err != nil {
+		t.Fatalf("responses decode back: %v", err)
+	}
+	if back.StopReason != ir.StopToolUse {
+		t.Errorf("stop = %s", back.StopReason)
+	}
+	var fc, txt *ir.Block
+	for i := range back.Blocks {
+		switch back.Blocks[i].Type {
+		case ir.BlockToolUse:
+			fc = &back.Blocks[i]
+		case ir.BlockText:
+			txt = &back.Blocks[i]
+		}
+	}
+	if txt == nil || txt.Text != "let me check" {
+		t.Errorf("assistant text lost: %+v", txt)
+	}
+	if fc == nil || fc.ToolCall.ID != "cx" || fc.ToolCall.Name != "f" {
+		t.Errorf("function_call item lost: %+v", fc)
+	}
+	if back.Usage.InputTokens != 2 || back.Usage.OutputTokens != 1 {
+		t.Errorf("usage = %+v", back.Usage)
+	}
+}
+
+// Responses within-protocol round trip: decode a Responses request, build a
+// Responses upstream body, decode it again — system/tools/tool-call pairing
+// must be lossless (the "no information lost on the hop" property, §3.2 table).
+func TestResponsesRequestRoundTripLossless(t *testing.T) {
+	responsesReq := mustJSON(t, map[string]any{
+		"model": "gpt-4o",
+		"input": []map[string]any{
+			{"type": "message", "role": "user", "content": "hi"},
+			{"type": "function_call", "call_id": "k1", "name": "search", "arguments": `{"q":"x"}`},
+			{"type": "function_call_output", "call_id": "k1", "output": "found"},
+		},
+		"tools": []map[string]any{{"type": "function", "name": "search", "parameters": map[string]any{"type": "object"}}},
+	})
+	ireq, err := resp.DecodeRequest(responsesReq, hdr)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	up, err := resp.BuildUpstream(ireq, "gpt-4o-mini")
+	if err != nil {
+		t.Fatalf("build upstream: %v", err)
+	}
+	if up.Path != "/v1/responses" {
+		t.Errorf("upstream path = %q", up.Path)
+	}
+	back, err := resp.DecodeRequest(up.Body, hdr)
+	if err != nil {
+		t.Fatalf("decode back: %v", err)
+	}
+	if back.Model != "gpt-4o-mini" {
+		t.Errorf("model = %q", back.Model)
+	}
+	if len(back.Tools) != 1 || back.Tools[0].Name != "search" {
+		t.Errorf("tools lost: %+v", back.Tools)
+	}
+	// user message + assistant function_call + user function_call_output survive
+	var hasUserText, hasToolUse, hasToolResult bool
+	for _, m := range back.Messages {
+		for _, b := range m.Blocks {
+			switch b.Type {
+			case ir.BlockText:
+				if m.Role == ir.RoleUser {
+					hasUserText = true
+				}
+			case ir.BlockToolUse:
+				hasToolUse = b.ToolCall.ID == "k1" && b.ToolCall.Name == "search"
+			case ir.BlockToolResult:
+				hasToolResult = b.ToolResult.ToolUseID == "k1"
+			}
+		}
+	}
+	if !hasUserText {
+		t.Error("user text lost on round trip")
+	}
+	if !hasToolUse {
+		t.Error("function_call lost on round trip")
+	}
+	if !hasToolResult {
+		t.Error("function_call_output lost on round trip")
+	}
+}
+
+// Registry wires the adapters and resolves by path (sanity for the dispatch layer).
 func TestRegistryByPath(t *testing.T) {
-	r := adapter.NewRegistry(chat, msg)
+	r := adapter.NewRegistry(chat, msg, resp)
 	for _, tc := range []struct {
 		path string
 		want adapter.Protocol
@@ -270,17 +453,17 @@ func TestRegistryByPath(t *testing.T) {
 		{"/v1/chat/completions", adapter.ProtocolChat},
 		{"/v1/messages", adapter.ProtocolMessages},
 		{"/v1/messages?beta=true", adapter.ProtocolMessages},
+		{"/v1/responses", adapter.ProtocolResponses},
 	} {
 		got, ok := adapter.ByPath(tc.path)
 		if !ok || got != tc.want {
 			t.Errorf("ByPath(%q) = %q,%v want %q", tc.path, got, ok, tc.want)
 		}
 	}
-	if _, ok := r.Get(adapter.ProtocolChat); !ok {
-		t.Error("chat adapter not registered")
-	}
-	if _, ok := r.Get(adapter.ProtocolMessages); !ok {
-		t.Error("messages adapter not registered")
+	for _, p := range []adapter.Protocol{adapter.ProtocolChat, adapter.ProtocolMessages, adapter.ProtocolResponses} {
+		if _, ok := r.Get(p); !ok {
+			t.Errorf("adapter %q not registered", p)
+		}
 	}
 }
 

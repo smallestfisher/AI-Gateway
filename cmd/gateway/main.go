@@ -17,6 +17,7 @@ import (
 	"github.com/aigateway/ai-hub/internal/adapter"
 	"github.com/aigateway/ai-hub/internal/adapter/anthropicmessages"
 	"github.com/aigateway/ai-hub/internal/adapter/openaichat"
+	"github.com/aigateway/ai-hub/internal/adapter/openairesponses"
 	"github.com/aigateway/ai-hub/internal/admin"
 	"github.com/aigateway/ai-hub/internal/auth"
 	"github.com/aigateway/ai-hub/internal/config"
@@ -37,7 +38,7 @@ func main() {
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level(cfg.LogLevel)}))
 	slog.SetDefault(log)
 
-	registryHub := adapter.NewRegistry(openaichat.New(), anthropicmessages.New())
+	registryHub := adapter.NewRegistry(openaichat.New(), anthropicmessages.New(), openairesponses.New())
 
 	src, healthStore, recorder, pool, rdb, closer := buildConfigAndHealth(&cfg, log)
 	defer closer()
