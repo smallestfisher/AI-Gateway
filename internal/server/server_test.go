@@ -93,7 +93,12 @@ func TestHTTP_Streaming_CrossProtocol(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		flusher, _ := w.(http.Flusher)
-		write := func(s string) { fmt.Fprint(w, s); if flusher != nil { flusher.Flush() } }
+		write := func(s string) {
+			fmt.Fprint(w, s)
+			if flusher != nil {
+				flusher.Flush()
+			}
+		}
 		write("data: {\"model\":\"gpt-4o\",\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}\n\n")
 		write("data: {\"choices\":[{\"delta\":{\"content\":\"Hi\"}}]}\n\n")
 		write("data: {\"choices\":[{\"delta\":{\"content\":\" there\"}}]}\n\n")
@@ -185,5 +190,47 @@ func TestHTTP_BadRequest(t *testing.T) {
 	}
 	if resp.StatusCode != 400 {
 		t.Fatalf("status = %d", resp.StatusCode)
+	}
+}
+
+func TestHTTP_ListModels(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer upstream.Close()
+	app := buildApp(t, upstream.URL)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	s := string(body)
+	if !strings.Contains(s, `"object":"list"`) || !strings.Contains(s, `"id":"claude-sonnet"`) {
+		t.Fatalf("unexpected models response: %s", s)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/models/claude-sonnet", nil)
+	resp, err = app.Test(req, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("single model status = %d", resp.StatusCode)
+	}
+	body, _ = io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), `"id":"claude-sonnet"`) {
+		t.Fatalf("unexpected model response: %s", body)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/models/missing", nil)
+	resp, err = app.Test(req, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 404 {
+		t.Fatalf("missing model status = %d", resp.StatusCode)
 	}
 }

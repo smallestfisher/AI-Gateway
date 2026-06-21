@@ -39,12 +39,20 @@ type Option func(*Router)
 
 // WithHealth sets the health checker.
 func WithHealth(h Health) Option {
-	return func(r *Router) { if h != nil { r.health = h } }
+	return func(r *Router) {
+		if h != nil {
+			r.health = h
+		}
+	}
 }
 
 // WithRand sets the random source used for weighted selection.
 func WithRand(f func() float64) Option {
-	return func(r *Router) { if f != nil { r.rand = f } }
+	return func(r *Router) {
+		if f != nil {
+			r.rand = f
+		}
+	}
 }
 
 // New creates a Router over the given config source.
@@ -54,6 +62,11 @@ func New(src registry.Source, opts ...Option) *Router {
 		o(r)
 	}
 	return r
+}
+
+// Snapshot returns the current configuration snapshot.
+func (r *Router) Snapshot() (*registry.Snapshot, error) {
+	return r.source.Snapshot()
 }
 
 // ErrNoChannel means the alias has no usable candidates.

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -29,7 +30,7 @@ import (
 type Deps struct {
 	Registry *adapter.Registry
 	Pipeline *pipeline.Pipeline
-	Auth     *AuthDeps // nil = auth disabled (dev)
+	Auth     *AuthDeps       // nil = auth disabled (dev)
 	Logger   *logging.Logger // nil = logging disabled
 }
 
@@ -56,9 +57,96 @@ func New(cfg *config.Config, log *slog.Logger, deps Deps) *fiber.App {
 		return c.JSON(fiber.Map{"status": "ok", "protocols": deps.Registry.Protocols()})
 	})
 
+	app.Get("/v1/models", modelsHandler(deps))
+	app.Get("/v1/models/:alias", modelHandler(deps))
 	app.All("/v1/*", proxyHandler(deps, log))
 	app.All("/v1beta/*", proxyHandler(deps, log))
 	return app
+}
+
+func modelsHandler(deps Deps) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		ident, err := authenticateModelList(c, deps.Auth)
+		if err != nil {
+			return err
+		}
+		aliases, err := visibleModelAliases(deps, ident)
+		if err != nil {
+			return c.Status(http.StatusInternalServerError).JSON(errBody("registry_error", err.Error()))
+		}
+		data := make([]fiber.Map, 0, len(aliases))
+		for _, alias := range aliases {
+			data = append(data, modelObject(alias))
+		}
+		return c.JSON(fiber.Map{"object": "list", "data": data})
+	}
+}
+
+func modelHandler(deps Deps) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		ident, err := authenticateModelList(c, deps.Auth)
+		if err != nil {
+			return err
+		}
+		alias := c.Params("alias")
+		if alias == "" || (ident != nil && !ident.CanUseModel(alias)) {
+			return c.Status(http.StatusNotFound).JSON(errBody("model_not_found", "model not found"))
+		}
+		snap, err := deps.Pipeline.Snapshot()
+		if err != nil {
+			return c.Status(http.StatusInternalServerError).JSON(errBody("registry_error", err.Error()))
+		}
+		if len(snap.ChannelsFor(alias)) == 0 {
+			return c.Status(http.StatusNotFound).JSON(errBody("model_not_found", "model not found"))
+		}
+		return c.JSON(modelObject(alias))
+	}
+}
+
+func authenticateModelList(c *fiber.Ctx, a *AuthDeps) (*auth.Identity, error) {
+	if a == nil {
+		return nil, nil
+	}
+	raw := extractKey(c)
+	ident, err := a.Resolver.Resolve(c.UserContext(), raw)
+	if err != nil {
+		code := "invalid_api_key"
+		if errors.Is(err, auth.ErrNoKey) {
+			code = "missing_api_key"
+		} else if errors.Is(err, auth.ErrUserDisabled) {
+			code = "user_disabled"
+		}
+		return nil, writeProtoError(c, adapter.ProtocolChat, code, err.Error(), http.StatusUnauthorized)
+	}
+	return ident, nil
+}
+
+func visibleModelAliases(deps Deps, ident *auth.Identity) ([]string, error) {
+	snap, err := deps.Pipeline.Snapshot()
+	if err != nil {
+		return nil, err
+	}
+	aliases := make([]string, 0, len(snap.Channels))
+	for alias, channels := range snap.Channels {
+		if len(channels) == 0 {
+			continue
+		}
+		if ident != nil && !ident.CanUseModel(alias) {
+			continue
+		}
+		aliases = append(aliases, alias)
+	}
+	sort.Strings(aliases)
+	return aliases, nil
+}
+
+func modelObject(alias string) fiber.Map {
+	return fiber.Map{
+		"id":       alias,
+		"object":   "model",
+		"created":  0,
+		"owned_by": "ai-gateway",
+	}
 }
 
 func proxyHandler(deps Deps, log *slog.Logger) fiber.Handler {
@@ -170,12 +258,12 @@ func handleUnary(c *fiber.Ctx, p *pipeline.Pipeline, ingress adapter.Adapter, ir
 
 	// Log the request
 	logEntry := logging.RequestLog{
-		RequestID:  ireq.ID,
-		Protocol:   ingress.Protocol(),
-		Model:      ireq.Model,
-		Stream:     false,
-		LatencyMs:  latency,
-		Timestamp:  start,
+		RequestID: ireq.ID,
+		Protocol:  ingress.Protocol(),
+		Model:     ireq.Model,
+		Stream:    false,
+		LatencyMs: latency,
+		Timestamp: start,
 	}
 	if ireq.Client != nil {
 		logEntry.UserID = ireq.Client.UserID

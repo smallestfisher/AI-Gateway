@@ -27,6 +27,11 @@ func New(r *router.Router, e *egress.Egress) *Pipeline {
 	return &Pipeline{Router: r, Egress: e}
 }
 
+// Snapshot returns the current routing configuration snapshot.
+func (p *Pipeline) Snapshot() (*registry.Snapshot, error) {
+	return p.Router.Snapshot()
+}
+
 // Run performs a non-streaming request: try candidate channels in failover
 // order until one succeeds. Returns the IR response, or the last error.
 func (p *Pipeline) Run(ctx context.Context, req *ir.UnifiedRequest) (*ir.UnifiedResponse, error) {
