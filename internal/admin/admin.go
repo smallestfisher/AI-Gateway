@@ -30,6 +30,23 @@ func Mount(app *fiber.App, st *Store, token string) {
 		return c.JSON(fiber.Map{"status": "reloaded"})
 	})
 
+	// dashboard
+	g.Get("/dashboard/stats", func(c *fiber.Ctx) error {
+		stats, err := st.GetDashboardStats(c.UserContext())
+		if err != nil {
+			return writeErr(c, err)
+		}
+		return c.JSON(stats)
+	})
+	g.Get("/dashboard/latency", func(c *fiber.Ctx) error {
+		hours := 24 // default 24 hours
+		points, err := st.GetLatencyTimeseries(c.UserContext(), hours)
+		if err != nil {
+			return writeErr(c, err)
+		}
+		return c.JSON(fiber.Map{"data": points})
+	})
+
 	// providers
 	g.Get("/providers", func(c *fiber.Ctx) error {
 		items, err := st.ListProviders(c.UserContext())

@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   ScrollText,
   Activity,
+  LayoutDashboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +22,12 @@ type NavItem = {
 };
 
 const SECTIONS: { heading: string; items: NavItem[] }[] = [
+  {
+    heading: "Overview",
+    items: [
+      { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard className="size-4" /> },
+    ],
+  },
   {
     heading: "Configuration",
     items: [
