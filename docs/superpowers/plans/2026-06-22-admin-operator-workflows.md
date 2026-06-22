@@ -341,7 +341,7 @@ git commit -m "feat: retain diagnostic run history"
 - Create: `apps/web/app/(admin)/health/page.tsx`
 - Modify: `apps/web/components/app-sidebar.tsx`
 
-- [ ] **Step 1: Add health backend DTOs**
+- [x] **Step 1: Add health backend DTOs**
 
 Create `HealthStatus`, `HealthRow`, `HealthThresholds`, and a small interface:
 
@@ -353,7 +353,7 @@ type HealthStatsProvider interface {
 
 Add `Store.ListHealth(ctx, hp HealthStatsProvider) (HealthStatus, error)`.
 
-- [ ] **Step 2: Query channel/provider rows**
+- [x] **Step 2: Query channel/provider rows**
 
 Use PostgreSQL query:
 
@@ -367,7 +367,7 @@ WHERE mc.enabled = true AND p.enabled = true AND m.enabled = true
 ORDER BY p.name, mc.upstream_model
 ```
 
-- [ ] **Step 3: Register health route**
+- [x] **Step 3: Register health route**
 
 Extend `MountOption` with a `health HealthStatsProvider` field and add:
 
@@ -383,7 +383,7 @@ g.Get("/health", func(c *fiber.Ctx) error {
 
 Pass the Redis health store from `cmd/gateway/main.go`.
 
-- [ ] **Step 4: Add Logs drawer**
+- [x] **Step 4: Add Logs drawer**
 
 In `apps/web/app/(admin)/logs/page.tsx`:
 
@@ -391,7 +391,7 @@ In `apps/web/app/(admin)/logs/page.tsx`:
 - Make rows clickable.
 - Render a `Sheet` with Request, Routing, Timings, Usage, and Error sections.
 
-- [ ] **Step 5: Add Health page**
+- [x] **Step 5: Add Health page**
 
 Create `apps/web/app/(admin)/health/page.tsx`:
 
@@ -400,11 +400,11 @@ Create `apps/web/app/(admin)/health/page.tsx`:
 - Auto-refresh every 20 seconds.
 - Show a degraded Redis warning if backend returns it.
 
-- [ ] **Step 6: Enable sidebar item**
+- [x] **Step 6: Enable sidebar item**
 
 In `apps/web/components/app-sidebar.tsx`, remove `disabled: true` from `/health`.
 
-- [ ] **Step 7: Verify**
+- [x] **Step 7: Verify**
 
 Run:
 
@@ -417,7 +417,7 @@ pnpm build
 
 Expected: Go tests pass or skip DB/Redis integration by env; frontend lint/build exit 0.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add internal/admin/health.go internal/admin/health_test.go internal/admin/admin.go cmd/gateway/main.go apps/web/lib/types.ts apps/web/lib/query-keys.ts 'apps/web/app/(admin)/logs/page.tsx' 'apps/web/app/(admin)/health/page.tsx' apps/web/components/app-sidebar.tsx

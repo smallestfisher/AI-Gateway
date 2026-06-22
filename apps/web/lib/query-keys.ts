@@ -11,5 +11,6 @@ export const qk = {
   users: ["users"] as const,
   keys: (userId: string) => ["keys", userId] as const,
   logs: (filter: unknown) => ["logs", filter] as const,
+  health: ["health"] as const,
   configVersion: ["config-version"] as const,
 };

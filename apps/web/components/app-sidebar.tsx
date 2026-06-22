@@ -47,7 +47,7 @@ const SECTIONS: { heading: string; items: NavItem[] }[] = [
     heading: "可观测",
     items: [
       { href: "/logs", label: "请求日志", icon: <ScrollText className="size-4" /> },
-      { href: "/health", label: "健康状态", icon: <Activity className="size-4" />, disabled: true },
+      { href: "/health", label: "健康状态", icon: <Activity className="size-4" /> },
     ],
   },
 ];

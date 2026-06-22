@@ -13,11 +13,18 @@ type MountOption func(*mountOptions)
 
 type mountOptions struct {
 	diagnostics *Diagnostics
+	health      HealthStatsProvider
 }
 
 func WithDiagnostics(d *Diagnostics) MountOption {
 	return func(o *mountOptions) {
 		o.diagnostics = d
+	}
+}
+
+func WithHealthStats(h HealthStatsProvider) MountOption {
+	return func(o *mountOptions) {
+		o.health = h
 	}
 }
 
@@ -61,6 +68,13 @@ func Mount(app *fiber.App, st *Store, token string, opts ...MountOption) {
 			return writeErr(c, err)
 		}
 		return c.JSON(fiber.Map{"data": points})
+	})
+	g.Get("/health", func(c *fiber.Ctx) error {
+		res, err := st.ListHealth(c.UserContext(), mo.health)
+		if err != nil {
+			return writeErr(c, err)
+		}
+		return c.JSON(res)
 	})
 
 	// request logs (log center): filtered, paginated list of request_logs rows.

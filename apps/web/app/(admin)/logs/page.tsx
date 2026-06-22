@@ -24,6 +24,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { api } from "@/lib/api";
 import { qk } from "@/lib/query-keys";
 import type { LogFilter, LogList, RequestLog } from "@/lib/types";
@@ -55,6 +62,7 @@ const initialFilters: FilterState = {
 export default function LogsPage() {
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const [page, setPage] = useState(0);
+  const [selectedLog, setSelectedLog] = useState<RequestLog | null>(null);
 
   const queryFilter = useMemo<LogFilter>(
     () => ({
@@ -220,7 +228,13 @@ export default function LogsPage() {
                   </TableRow>
                 ))
               ) : logs.length > 0 ? (
-                logs.map((log) => <LogRow key={log.id} log={log} />)
+                logs.map((log) => (
+                  <LogRow
+                    key={log.id}
+                    log={log}
+                    onSelect={setSelectedLog}
+                  />
+                ))
               ) : (
                 <TableRow>
                   <TableCell colSpan={7} className="p-0">
@@ -261,18 +275,37 @@ export default function LogsPage() {
           </div>
         </div>
       </div>
+
+      <LogDetailSheet
+        log={selectedLog}
+        open={selectedLog !== null}
+        onOpenChange={(open) => !open && setSelectedLog(null)}
+      />
     </>
   );
 }
 
-function LogRow({ log }: { log: RequestLog }) {
+function LogRow({
+  log,
+  onSelect,
+}: {
+  log: RequestLog;
+  onSelect: (log: RequestLog) => void;
+}) {
   const tokens =
     (log.input_tokens ?? 0) +
     (log.output_tokens ?? 0) +
     (log.reasoning_tokens ?? 0);
 
   return (
-    <TableRow>
+    <TableRow
+      className="cursor-pointer"
+      onClick={() => onSelect(log)}
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") onSelect(log);
+      }}
+    >
       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
         {formatTime(log.timestamp)}
       </TableCell>
@@ -312,6 +345,127 @@ function LogRow({ log }: { log: RequestLog }) {
         {tokens > 0 ? tokens.toLocaleString() : "-"}
       </TableCell>
     </TableRow>
+  );
+}
+
+function LogDetailSheet({
+  log,
+  open,
+  onOpenChange,
+}: {
+  log: RequestLog | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+        <SheetHeader>
+          <SheetTitle>请求详情</SheetTitle>
+          <SheetDescription>
+            {log?.request_id ?? "选择日志后查看完整字段。"}
+          </SheetDescription>
+        </SheetHeader>
+
+        {log && (
+          <div className="mt-5 space-y-5">
+            <DetailSection title="请求">
+              <DetailItem label="请求 ID" value={log.request_id} mono />
+              <DetailItem label="时间" value={formatTime(log.timestamp)} />
+              <DetailItem label="用户 ID" value={log.user_id || "-"} mono />
+              <DetailItem label="API Key ID" value={log.api_key_id || "-"} mono />
+              <DetailItem label="协议" value={log.protocol} mono />
+              <DetailItem label="模型" value={log.model} mono />
+              <DetailItem label="模式" value={log.stream ? "流式" : "非流式"} />
+            </DetailSection>
+
+            <DetailSection title="路由">
+              <DetailItem label="供应商" value={log.provider_id || "-"} mono />
+              <DetailItem
+                label="上游模型"
+                value={log.upstream_model || "-"}
+                mono
+              />
+              <DetailItem label="状态" value={log.status} mono />
+              <DetailItem
+                label="HTTP"
+                value={log.http_status ? String(log.http_status) : "-"}
+              />
+              <DetailItem label="停止原因" value={log.stop_reason || "-"} mono />
+            </DetailSection>
+
+            <DetailSection title="耗时">
+              <DetailItem label="总延迟" value={formatMs(log.latency_ms)} />
+              <DetailItem label="TTFT" value={formatMs(log.ttft_ms)} />
+            </DetailSection>
+
+            <DetailSection title="Token">
+              <DetailItem
+                label="输入"
+                value={String(log.input_tokens ?? 0)}
+              />
+              <DetailItem
+                label="输出"
+                value={String(log.output_tokens ?? 0)}
+              />
+              <DetailItem
+                label="Cache Read"
+                value={String(log.cache_read_tokens ?? 0)}
+              />
+              <DetailItem
+                label="Cache Create"
+                value={String(log.cache_creation_tokens ?? 0)}
+              />
+              <DetailItem
+                label="Reasoning"
+                value={String(log.reasoning_tokens ?? 0)}
+              />
+            </DetailSection>
+
+            {(log.error_code || log.error_msg) && (
+              <DetailSection title="错误">
+                <DetailItem label="错误码" value={log.error_code || "-"} mono />
+                <DetailItem label="错误信息" value={log.error_msg || "-"} />
+              </DetailSection>
+            )}
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function DetailSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-md border p-3">
+      <h3 className="mb-3 text-sm font-medium">{title}</h3>
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">{children}</dl>
+    </section>
+  );
+}
+
+function DetailItem({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className={mono ? "break-all font-mono" : "break-words"}>
+        {value}
+      </dd>
+    </>
   );
 }
 

@@ -217,3 +217,29 @@ export interface LogFilter {
   limit: number;
   offset: number;
 }
+
+export interface HealthThresholds {
+  error_rate: number;
+  p95_ttft_ms: number;
+  window_sec: number;
+  cooldown_sec: number;
+}
+
+export interface HealthRow {
+  provider_id: string;
+  provider_name: string;
+  upstream_model: string;
+  total: number;
+  failures: number;
+  slow: number;
+  error_rate: number;
+  slow_rate: number;
+  open: boolean;
+  opened_ago_s: number;
+  thresholds: HealthThresholds;
+}
+
+export interface HealthStatus {
+  data: HealthRow[];
+  warning?: string;
+}
