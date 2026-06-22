@@ -93,7 +93,7 @@ const HEADER_PRESETS: HeaderPreset[] = [
     id: "claude-code",
     label: "Claude Code",
     name: "Claude Code",
-    userAgent: "claude-cli/1.0 (external, cli)",
+    userAgent: "claude-cli/2.1.181 (external, cli)",
     headers: [
       { key: "anthropic-version", value: "2023-06-01" },
       { key: "anthropic-beta", value: "claude-code-20250219" },

@@ -126,14 +126,16 @@ export default function ProvidersPage() {
         channels={channels.data ?? []}
       />
 
-      <ModelSyncSheet
-        key={syncing?.id ?? "closed"}
-        provider={syncing}
-        open={syncing !== null}
-        onOpenChange={(o) => !o && setSyncing(null)}
-        models={models.data ?? []}
-        channels={channels.data ?? []}
-      />
+      {syncing && (
+        <ModelSyncSheet
+          key={syncing.id ?? "syncing"}
+          provider={syncing}
+          open
+          onOpenChange={(o) => !o && setSyncing(null)}
+          models={models.data ?? []}
+          channels={channels.data ?? []}
+        />
+      )}
 
       <ConfirmDialog
         open={pendingDelete !== null}
