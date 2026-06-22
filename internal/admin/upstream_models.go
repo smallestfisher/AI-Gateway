@@ -8,6 +8,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/aigateway/ai-hub/internal/adapter"
+	"github.com/aigateway/ai-hub/internal/registry"
 )
 
 // UpstreamModel is a model advertised by an upstream provider's /v1/models API.
@@ -93,6 +96,57 @@ func (s *Store) getUpstreamProvider(ctx context.Context, id string) (upstreamPro
 	}
 	p.APIKey = string(key)
 	return p, nil
+}
+
+func (s *Store) getDiagnosticProvider(ctx context.Context, id string) (*registry.Provider, error) {
+	if id == "" {
+		return nil, ErrValidation
+	}
+	var (
+		p             registry.Provider
+		proto         string
+		apiKey        []byte
+		proxyURL      *string
+		timeoutMS     int
+		connTimeoutMS int
+		maxRetries    int
+		metadata      []byte
+	)
+	err := s.pool.QueryRow(ctx, `
+		SELECT p.id, p.name, p.protocol, p.base_url, p.api_key_enc,
+		       pe.url, p.timeout_ms, p.connect_timeout_ms, p.max_retries, p.metadata
+		FROM providers p
+		LEFT JOIN proxy_egress pe ON pe.id = p.proxy_id AND pe.enabled = true
+		WHERE p.id = $1`, id).Scan(
+		&p.ID, &p.Name, &proto, &p.BaseURL, &apiKey, &proxyURL,
+		&timeoutMS, &connTimeoutMS, &maxRetries, &metadata,
+	)
+	if err != nil {
+		return nil, err
+	}
+	p.Protocol = adapter.Protocol(proto)
+	p.APIKey = string(apiKey)
+	p.Timeout = time.Duration(timeoutMS) * time.Millisecond
+	p.ConnectTimeout = time.Duration(connTimeoutMS) * time.Millisecond
+	p.MaxRetries = maxRetries
+	if proxyURL != nil {
+		p.ProxyURL = *proxyURL
+	}
+	p.Headers = extractProviderHeaders(metadata)
+	return &p, nil
+}
+
+func extractProviderHeaders(metadata []byte) map[string]string {
+	if len(metadata) == 0 {
+		return nil
+	}
+	var doc struct {
+		Headers map[string]string `json:"headers"`
+	}
+	if json.Unmarshal(metadata, &doc) != nil {
+		return nil
+	}
+	return doc.Headers
 }
 
 func modelListAuthHeaders(protocol, key string) map[string]string {
