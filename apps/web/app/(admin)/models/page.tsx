@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Boxes, Plus, Trash2 } from "lucide-react";
+import { Boxes, Plus, TestTube2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Model, ModelChannel, Provider } from "@/lib/types";
 import { qk } from "@/lib/query-keys";
@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/empty-state";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { GatewayTestSheet } from "@/components/diagnostics/gateway-test-sheet";
 import { modelColumns } from "./columns";
 import { ModelForm } from "./model-form";
 import { ChannelForm } from "./channel-form";
@@ -39,6 +40,10 @@ export default function ModelsPage() {
   const [channelTarget, setChannelTarget] = useState<Model | null>(null);
   const [pendingDeleteChannel, setPendingDeleteChannel] =
     useState<ModelChannel | null>(null);
+  const [testingChannel, setTestingChannel] = useState<{
+    model: Model;
+    channel: ModelChannel;
+  } | null>(null);
 
   const providerName = useMemo(() => {
     const m = new Map<string, string>();
@@ -147,14 +152,24 @@ export default function ModelsPage() {
                     {c.enabled ? "启用" : "停用"}
                   </Badge>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="移除通道"
-                  onClick={() => setPendingDeleteChannel(c)}
-                >
-                  <Trash2 className="size-3.5 text-destructive" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="测试通道"
+                    onClick={() => setTestingChannel({ model, channel: c })}
+                  >
+                    <TestTube2 className="size-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="移除通道"
+                    onClick={() => setPendingDeleteChannel(c)}
+                  >
+                    <Trash2 className="size-3.5 text-destructive" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -212,6 +227,18 @@ export default function ModelsPage() {
         providers={providers.data ?? []}
         providersLoading={providers.isLoading}
         modelAlias={channelTarget?.alias ?? null}
+      />
+
+      <GatewayTestSheet
+        open={testingChannel !== null}
+        onOpenChange={(o) => !o && setTestingChannel(null)}
+        channel={testingChannel?.channel ?? null}
+        alias={testingChannel?.model.alias ?? null}
+        providerName={
+          testingChannel
+            ? (providerName.get(testingChannel.channel.provider_id) ?? null)
+            : null
+        }
       />
 
       <ConfirmDialog
