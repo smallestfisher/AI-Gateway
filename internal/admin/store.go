@@ -480,6 +480,9 @@ func (s *Store) CreateProfile(ctx context.Context, p ClientProfile) (string, err
 			p.Name, p.Scope, p.TargetID, marshalJSON(p.Headers), p.UserAgent, p.Origin, p.Referer,
 			p.StripClientHeaders, p.Enabled,
 		).Scan(&id); err != nil {
+			if isUniqueViolation(err, "uq_profile_default") {
+				return fmt.Errorf("admin: %w: default client profile already exists", ErrValidation)
+			}
 			return err
 		}
 		return insertAudit(ctx, tx, "profile.create", "profile", id, map[string]any{
@@ -841,4 +844,9 @@ func assertRowsAffected(tag pgconn.CommandTag, id string) error {
 		return fmt.Errorf("admin: %w: %s", ErrNotFound, id)
 	}
 	return nil
+}
+
+func isUniqueViolation(err error, constraint string) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == constraint
 }

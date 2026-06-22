@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"strings"
@@ -28,6 +29,18 @@ type upstreamProvider struct {
 	APIKey   string
 }
 
+type ErrUpstream struct {
+	Status int
+	Body   string
+}
+
+func (e *ErrUpstream) Error() string {
+	if e.Body == "" {
+		return fmt.Sprintf("admin: upstream returned status %d", e.Status)
+	}
+	return fmt.Sprintf("admin: upstream returned status %d: %s", e.Status, e.Body)
+}
+
 // ListUpstreamModels asks the provider for its supported models. Most OpenAI-
 // compatible and Anthropic-compatible providers expose GET /v1/models.
 func (s *Store) ListUpstreamModels(ctx context.Context, providerID string) ([]UpstreamModel, error) {
@@ -38,6 +51,14 @@ func (s *Store) ListUpstreamModels(ctx context.Context, providerID string) ([]Up
 	if err != nil {
 		return nil, err
 	}
+	profile, err := s.getDiagnosticProviderProfile(ctx, providerID)
+	if err != nil {
+		return nil, err
+	}
+	return fetchUpstreamModels(ctx, p, profile)
+}
+
+func fetchUpstreamModels(ctx context.Context, p upstreamProvider, profile *registry.ClientProfile) ([]UpstreamModel, error) {
 	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -52,9 +73,10 @@ func (s *Store) ListUpstreamModels(ctx context.Context, providerID string) ([]Up
 	for k, v := range egress.DefaultClientHeaders(adapter.Protocol(p.Protocol)) {
 		req.Header.Set(k, v)
 	}
-	if profile, err := s.getDiagnosticProviderProfile(ctx, providerID); err == nil {
-		applyClientProfileHeader(req.Header, profile)
+	for k, v := range egress.DefaultDynamicClientHeaders(adapter.Protocol(p.Protocol), "admin-upstream-models") {
+		req.Header.Set(k, v)
 	}
+	applyClientProfileHeader(req.Header, profile)
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
@@ -63,7 +85,7 @@ func (s *Store) ListUpstreamModels(ctx context.Context, providerID string) ([]Up
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("admin: upstream models returned status %d", resp.StatusCode)
+		return nil, &ErrUpstream{Status: resp.StatusCode, Body: readPreview(resp.Body, 512)}
 	}
 
 	var body struct {
@@ -90,6 +112,14 @@ func (s *Store) ListUpstreamModels(ctx context.Context, providerID string) ([]Up
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out, nil
+}
+
+func readPreview(r io.Reader, limit int64) string {
+	if r == nil || limit <= 0 {
+		return ""
+	}
+	b, _ := io.ReadAll(io.LimitReader(r, limit))
+	return strings.TrimSpace(string(b))
 }
 
 func (s *Store) getUpstreamProvider(ctx context.Context, id string) (upstreamProvider, error) {

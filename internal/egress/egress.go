@@ -290,30 +290,38 @@ func dynamicClientHeaders(req *ir.UnifiedRequest) map[string]string {
 	if req == nil || req.ID == "" {
 		return nil
 	}
-	if req.ClientProtocol == string(adapter.ProtocolMessages) {
-		return map[string]string{
-			"X-Claude-Code-Session-Id": req.ID,
-		}
-	}
-	if req.ClientProtocol != string(adapter.ProtocolResponses) {
+	return DefaultDynamicClientHeaders(adapter.Protocol(req.ClientProtocol), req.ID)
+}
+
+// DefaultDynamicClientHeaders returns CLI-like headers that vary per request.
+func DefaultDynamicClientHeaders(p adapter.Protocol, requestID string) map[string]string {
+	if requestID == "" {
 		return nil
 	}
-	windowID := req.ID + ":0"
+	if p == adapter.ProtocolMessages {
+		return map[string]string{
+			"X-Claude-Code-Session-Id": requestID,
+		}
+	}
+	if p != adapter.ProtocolResponses {
+		return nil
+	}
+	windowID := requestID + ":0"
 	metadata := map[string]any{
 		"request_kind":            "turn",
 		"sandbox":                 "seccomp",
-		"session_id":              req.ID,
-		"thread_id":               req.ID,
+		"session_id":              requestID,
+		"thread_id":               requestID,
 		"thread_source":           "user",
-		"turn_id":                 req.ID,
+		"turn_id":                 requestID,
 		"turn_started_at_unix_ms": time.Now().UnixMilli(),
 		"window_id":               windowID,
 	}
 	metadataJSON, _ := json.Marshal(metadata)
 	return map[string]string{
-		"Thread-Id":             req.ID,
-		"Session-Id":            req.ID,
-		"X-Client-Request-Id":   req.ID,
+		"Thread-Id":             requestID,
+		"Session-Id":            requestID,
+		"X-Client-Request-Id":   requestID,
 		"X-Codex-Window-Id":     windowID,
 		"X-Codex-Turn-Metadata": string(metadataJSON),
 	}

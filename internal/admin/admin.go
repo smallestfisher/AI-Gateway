@@ -317,11 +317,14 @@ func writeErr(c *fiber.Ctx, err error) error {
 }
 
 func classify(err error) (string, int) {
+	var upErr *ErrUpstream
 	switch {
 	case errors.Is(err, ErrValidation):
 		return "validation_error", 400
 	case errors.Is(err, ErrNotFound):
 		return "not_found", 404
+	case errors.As(err, &upErr):
+		return "upstream_error", 502
 	default:
 		return "internal_error", 500
 	}

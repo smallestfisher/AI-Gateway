@@ -60,9 +60,13 @@ export default function ProfilesPage() {
   }
 
   async function createProfile(body: Partial<ClientProfile>) {
-    await profiles.create.mutateAsync(body);
-    toast.success("客户端伪装配置已创建");
-    setFormOpen(false);
+    try {
+      await profiles.create.mutateAsync(body);
+      toast.success("客户端伪装配置已创建");
+      setFormOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "创建失败");
+    }
   }
 
   async function confirmDelete() {
