@@ -1,7 +1,7 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { Pencil, Trash2 } from "lucide-react";
+import { Activity, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Provider } from "@/lib/types";
@@ -9,9 +9,11 @@ import type { Provider } from "@/lib/types";
 export function providerColumns({
   onEdit,
   onDelete,
+  onDiagnostics,
 }: {
   onEdit: (p: Provider) => void;
   onDelete: (p: Provider) => void;
+  onDiagnostics: (p: Provider) => void;
 }): ColumnDef<Provider>[] {
   return [
     {
@@ -76,6 +78,14 @@ export function providerColumns({
       header: () => <span className="sr-only">操作</span>,
       cell: ({ row }) => (
         <div className="flex justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="诊断"
+            onClick={() => onDiagnostics(row.original)}
+          >
+            <Activity className="size-3.5" />
+          </Button>
           <Button
             variant="ghost"
             size="icon-sm"

@@ -45,6 +45,52 @@ export interface UpstreamModel {
   display_name?: string;
 }
 
+export interface DiagnosticError {
+  code: string;
+  message: string;
+  body_preview?: string;
+}
+
+export interface DiagnosticUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_tokens?: number;
+  cache_read_tokens?: number;
+  reasoning_tokens?: number;
+}
+
+export interface DiagnosticResult {
+  ok: boolean;
+  mode: "upstream" | "gateway";
+  client_protocol?: string;
+  alias?: string;
+  provider_id?: string;
+  provider_name?: string;
+  protocol?: string;
+  upstream_model?: string;
+  latency_ms: number;
+  http_status?: number;
+  stop_reason?: string;
+  usage?: DiagnosticUsage;
+  response_preview?: string;
+  error?: DiagnosticError;
+}
+
+export interface UpstreamTestInput {
+  upstream_model: string;
+  message?: string;
+  timeout_ms?: number;
+}
+
+export interface GatewayTestInput {
+  client_protocol: Protocol | string;
+  alias: string;
+  provider_id?: string;
+  upstream_model?: string;
+  message?: string;
+  timeout_ms?: number;
+}
+
 export type ProfileScope = "default" | "provider" | "model";
 
 export interface ClientProfile {

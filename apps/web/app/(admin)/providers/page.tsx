@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Network, Plus } from "lucide-react";
 import { toast } from "sonner";
-import type { Provider } from "@/lib/types";
+import type { Model, ModelChannel, Provider } from "@/lib/types";
 import { qk } from "@/lib/query-keys";
+import { api } from "@/lib/api";
 import { useResource } from "@/hooks/use-resource";
 import { DataTable } from "@/components/data-table";
 import { PageHeader } from "@/components/page-header";
@@ -13,15 +15,25 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { providerColumns } from "./columns";
 import { ProviderForm } from "./provider-form";
+import { ProviderDiagnosticsSheet } from "./provider-diagnostics-sheet";
 
 export default function ProvidersPage() {
   const { list, create, update, remove } = useResource<Provider>({
     key: qk.providers,
     path: "/providers",
   });
+  const models = useQuery({
+    queryKey: qk.models,
+    queryFn: () => api.list<Model>("/models"),
+  });
+  const channels = useQuery({
+    queryKey: qk.channels,
+    queryFn: () => api.list<ModelChannel>("/model-channels"),
+  });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Provider | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Provider | null>(null);
+  const [diagnostics, setDiagnostics] = useState<Provider | null>(null);
 
   function startNew() {
     setEditing(null);
@@ -55,6 +67,7 @@ export default function ProvidersPage() {
   const columns = providerColumns({
     onEdit: startEdit,
     onDelete: setPendingDelete,
+    onDiagnostics: setDiagnostics,
   });
 
   return (
@@ -96,6 +109,14 @@ export default function ProvidersPage() {
         onOpenChange={setOpen}
         onSubmit={submit}
         submitting={create.isPending || update.isPending}
+      />
+
+      <ProviderDiagnosticsSheet
+        provider={diagnostics}
+        open={diagnostics !== null}
+        onOpenChange={(o) => !o && setDiagnostics(null)}
+        models={models.data ?? []}
+        channels={channels.data ?? []}
       />
 
       <ConfirmDialog
