@@ -45,6 +45,35 @@ export interface UpstreamModel {
   display_name?: string;
 }
 
+export interface BulkModelChannelItem {
+  upstream_model: string;
+  alias: string;
+  display_name?: string;
+}
+
+export interface BulkModelChannelInput {
+  items: BulkModelChannelItem[];
+  weight: number;
+  priority: number;
+  enabled: boolean;
+}
+
+export interface BulkModelChannelRowResult {
+  alias: string;
+  upstream_model: string;
+  status: "created" | "skipped" | string;
+  model_id?: string;
+  channel_id?: string;
+  error?: string;
+}
+
+export interface BulkModelChannelResult {
+  created_models: number;
+  created_channels: number;
+  skipped_channels: number;
+  items: BulkModelChannelRowResult[];
+}
+
 export interface DiagnosticError {
   code: string;
   message: string;

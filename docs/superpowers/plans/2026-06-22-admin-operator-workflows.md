@@ -210,15 +210,15 @@ git commit -m "feat: bulk bind provider models"
 - Modify: `apps/web/app/(admin)/providers/columns.tsx`
 - Modify: `apps/web/app/(admin)/providers/page.tsx`
 
-- [ ] **Step 1: Add frontend types**
+- [x] **Step 1: Add frontend types**
 
 Add TypeScript interfaces mirroring `BulkModelChannelInput`, `BulkModelChannelItem`, `BulkModelChannelResult`, and `BulkModelChannelRowResult`.
 
-- [ ] **Step 2: Add Provider table action**
+- [x] **Step 2: Add Provider table action**
 
 In provider columns, add a sync action using a suitable lucide icon (`ListPlus` or `DownloadCloud`) with `aria-label="同步模型"`.
 
-- [ ] **Step 3: Create `ModelSyncSheet`**
+- [x] **Step 3: Create `ModelSyncSheet`**
 
 The sheet must:
 
@@ -230,7 +230,7 @@ The sheet must:
 - Show created/skipped summary.
 - Invalidate `qk.models` and `qk.channels`.
 
-- [ ] **Step 4: Wire sheet into Provider page**
+- [x] **Step 4: Wire sheet into Provider page**
 
 Add state:
 
@@ -240,7 +240,7 @@ const [syncing, setSyncing] = useState<Provider | null>(null);
 
 Pass `onSyncModels: setSyncing` into columns and render `ModelSyncSheet` with `key={syncing?.id ?? "closed"}`.
 
-- [ ] **Step 5: Verify frontend**
+- [x] **Step 5: Verify frontend**
 
 Run:
 
@@ -251,7 +251,7 @@ pnpm build
 
 Expected: lint exits 0 with only the existing TanStack Table warning; build exits 0.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/web/lib/types.ts apps/web/lib/query-keys.ts 'apps/web/app/(admin)/providers/model-sync-sheet.tsx' 'apps/web/app/(admin)/providers/columns.tsx' 'apps/web/app/(admin)/providers/page.tsx'

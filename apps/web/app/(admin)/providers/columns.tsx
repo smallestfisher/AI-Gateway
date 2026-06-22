@@ -1,7 +1,7 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { Activity, Pencil, Trash2 } from "lucide-react";
+import { Activity, ListPlus, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Provider } from "@/lib/types";
@@ -10,10 +10,12 @@ export function providerColumns({
   onEdit,
   onDelete,
   onDiagnostics,
+  onSyncModels,
 }: {
   onEdit: (p: Provider) => void;
   onDelete: (p: Provider) => void;
   onDiagnostics: (p: Provider) => void;
+  onSyncModels: (p: Provider) => void;
 }): ColumnDef<Provider>[] {
   return [
     {
@@ -85,6 +87,14 @@ export function providerColumns({
             onClick={() => onDiagnostics(row.original)}
           >
             <Activity className="size-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="同步模型"
+            onClick={() => onSyncModels(row.original)}
+          >
+            <ListPlus className="size-3.5" />
           </Button>
           <Button
             variant="ghost"

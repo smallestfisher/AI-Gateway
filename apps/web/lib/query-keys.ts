@@ -4,6 +4,7 @@ export const qk = {
   models: ["models"] as const,
   channels: ["channels"] as const,
   upstreamModels: (providerId: string) => ["upstream-models", providerId] as const,
+  modelSync: (providerId: string) => ["model-sync", providerId] as const,
   providerDiagnostics: (providerId: string) => ["provider-diagnostics", providerId] as const,
   profiles: ["profiles"] as const,
   policies: ["policies"] as const,

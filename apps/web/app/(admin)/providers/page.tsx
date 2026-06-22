@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { providerColumns } from "./columns";
 import { ProviderForm } from "./provider-form";
 import { ProviderDiagnosticsSheet } from "./provider-diagnostics-sheet";
+import { ModelSyncSheet } from "./model-sync-sheet";
 
 export default function ProvidersPage() {
   const { list, create, update, remove } = useResource<Provider>({
@@ -34,6 +35,7 @@ export default function ProvidersPage() {
   const [editing, setEditing] = useState<Provider | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Provider | null>(null);
   const [diagnostics, setDiagnostics] = useState<Provider | null>(null);
+  const [syncing, setSyncing] = useState<Provider | null>(null);
 
   function startNew() {
     setEditing(null);
@@ -68,6 +70,7 @@ export default function ProvidersPage() {
     onEdit: startEdit,
     onDelete: setPendingDelete,
     onDiagnostics: setDiagnostics,
+    onSyncModels: setSyncing,
   });
 
   return (
@@ -116,6 +119,15 @@ export default function ProvidersPage() {
         provider={diagnostics}
         open={diagnostics !== null}
         onOpenChange={(o) => !o && setDiagnostics(null)}
+        models={models.data ?? []}
+        channels={channels.data ?? []}
+      />
+
+      <ModelSyncSheet
+        key={syncing?.id ?? "closed"}
+        provider={syncing}
+        open={syncing !== null}
+        onOpenChange={(o) => !o && setSyncing(null)}
         models={models.data ?? []}
         channels={channels.data ?? []}
       />
