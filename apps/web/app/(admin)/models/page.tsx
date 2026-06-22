@@ -230,6 +230,14 @@ export default function ModelsPage() {
       />
 
       <GatewayTestSheet
+        key={
+          testingChannel
+            ? `${testingChannel.model.id ?? testingChannel.model.alias}:${
+                testingChannel.channel.id ??
+                `${testingChannel.channel.provider_id}:${testingChannel.channel.upstream_model}`
+              }`
+            : "closed"
+        }
         open={testingChannel !== null}
         onOpenChange={(o) => !o && setTestingChannel(null)}
         channel={testingChannel?.channel ?? null}

@@ -112,6 +112,7 @@ export default function ProvidersPage() {
       />
 
       <ProviderDiagnosticsSheet
+        key={diagnostics?.id ?? "closed"}
         provider={diagnostics}
         open={diagnostics !== null}
         onOpenChange={(o) => !o && setDiagnostics(null)}
