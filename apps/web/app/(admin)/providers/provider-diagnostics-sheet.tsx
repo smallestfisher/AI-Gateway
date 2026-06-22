@@ -58,7 +58,8 @@ export function ProviderDiagnosticsSheet({
   const providerId = provider?.id ?? "";
   const [upstreamModel, setUpstreamModel] = useState("");
   const [message, setMessage] = useState("ping");
-  const [clientProtocol, setClientProtocol] = useState("openai_chat");
+  const [clientProtocolOverride, setClientProtocolOverride] = useState<string | null>(null);
+  const clientProtocol = clientProtocolOverride ?? provider?.protocol ?? "openai_chat";
   const [channelKey, setChannelKey] = useState("");
   const [result, setResult] = useState<DiagnosticResult | null>(null);
   const historyKey = providerId
@@ -265,7 +266,7 @@ export function ProviderDiagnosticsSheet({
                 <Label>客户端协议</Label>
                 <Select
                   value={clientProtocol}
-                  onValueChange={setClientProtocol}
+                  onValueChange={setClientProtocolOverride}
                 >
                   <SelectTrigger>
                     <SelectValue />

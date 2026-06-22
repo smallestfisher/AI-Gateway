@@ -48,6 +48,9 @@ func (s *Store) ListUpstreamModels(ctx context.Context, providerID string) ([]Up
 	for k, v := range modelListAuthHeaders(p.Protocol, p.APIKey) {
 		req.Header.Set(k, v)
 	}
+	if profile, err := s.getDiagnosticProviderProfile(ctx, providerID); err == nil {
+		applyClientProfileHeader(req.Header, profile)
+	}
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
@@ -134,6 +137,95 @@ func (s *Store) getDiagnosticProvider(ctx context.Context, id string) (*registry
 	}
 	p.Headers = extractProviderHeaders(metadata)
 	return &p, nil
+}
+
+func (s *Store) getDiagnosticProviderProfile(ctx context.Context, providerID string) (*registry.ClientProfile, error) {
+	if providerID == "" {
+		return nil, ErrValidation
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT scope, headers, COALESCE(user_agent,''), COALESCE(origin,''),
+		       COALESCE(referer,''), strip_client_headers
+		FROM client_profiles
+		WHERE enabled=true
+		  AND (scope='default' OR (scope='provider' AND target_id=$1))
+		ORDER BY CASE WHEN scope='default' THEN 0 ELSE 1 END`, providerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := &registry.ClientProfile{Headers: map[string]string{}}
+	applied := false
+	for rows.Next() {
+		var (
+			scope, ua, origin, referer string
+			headers                    []byte
+			strip                      bool
+		)
+		if err := rows.Scan(&scope, &headers, &ua, &origin, &referer, &strip); err != nil {
+			return nil, err
+		}
+		cp := &registry.ClientProfile{UserAgent: ua, Origin: origin, Referer: referer, StripClientHeaders: strip}
+		if len(headers) > 0 {
+			_ = json.Unmarshal(headers, &cp.Headers)
+		}
+		mergeDiagnosticProfile(out, cp)
+		applied = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if !applied || emptyDiagnosticProfile(out) {
+		return nil, nil
+	}
+	return out, nil
+}
+
+func mergeDiagnosticProfile(dst, src *registry.ClientProfile) {
+	if src == nil {
+		return
+	}
+	if dst.Headers == nil {
+		dst.Headers = map[string]string{}
+	}
+	for k, v := range src.Headers {
+		dst.Headers[k] = v
+	}
+	if src.UserAgent != "" {
+		dst.UserAgent = src.UserAgent
+	}
+	if src.Origin != "" {
+		dst.Origin = src.Origin
+	}
+	if src.Referer != "" {
+		dst.Referer = src.Referer
+	}
+	if src.StripClientHeaders {
+		dst.StripClientHeaders = true
+	}
+}
+
+func emptyDiagnosticProfile(p *registry.ClientProfile) bool {
+	return p == nil || (len(p.Headers) == 0 && p.UserAgent == "" && p.Origin == "" && p.Referer == "" && !p.StripClientHeaders)
+}
+
+func applyClientProfileHeader(h http.Header, p *registry.ClientProfile) {
+	if p == nil {
+		return
+	}
+	for k, v := range p.Headers {
+		h.Set(k, v)
+	}
+	if p.UserAgent != "" {
+		h.Set("User-Agent", p.UserAgent)
+	}
+	if p.Origin != "" {
+		h.Set("Origin", p.Origin)
+	}
+	if p.Referer != "" {
+		h.Set("Referer", p.Referer)
+	}
 }
 
 func extractProviderHeaders(metadata []byte) map[string]string {

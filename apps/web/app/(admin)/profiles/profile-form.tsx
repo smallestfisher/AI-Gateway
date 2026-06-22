@@ -83,7 +83,7 @@ const HEADER_PRESETS: HeaderPreset[] = [
     id: "codex-cli",
     label: "Codex CLI",
     name: "Codex CLI",
-    userAgent: "codex-cli/0.1.0 (external, cli)",
+    userAgent: "codex-cli/0.137.0 (external, cli)",
     headers: [
       { key: "OpenAI-Beta", value: "responses=v1" },
       { key: "X-Client-Name", value: "codex-cli" },

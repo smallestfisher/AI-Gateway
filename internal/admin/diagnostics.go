@@ -195,10 +195,18 @@ func (d *Diagnostics) TestProviderUpstream(ctx context.Context, providerID strin
 	if err != nil {
 		return diagnosticFailure("upstream", start, base, err)
 	}
-	return d.testProviderUpstream(ctx, p, in)
+	profile, err := d.store.getDiagnosticProviderProfile(ctx, providerID)
+	if err != nil {
+		return diagnosticFailure("upstream", start, base, err)
+	}
+	return d.testProviderUpstreamWithProfile(ctx, p, profile, in)
 }
 
 func (d *Diagnostics) testProviderUpstream(ctx context.Context, p *registry.Provider, in UpstreamTestInput) DiagnosticResult {
+	return d.testProviderUpstreamWithProfile(ctx, p, nil, in)
+}
+
+func (d *Diagnostics) testProviderUpstreamWithProfile(ctx context.Context, p *registry.Provider, profile *registry.ClientProfile, in UpstreamTestInput) DiagnosticResult {
 	start := time.Now()
 	requestID := newDiagnosticRequestID()
 	if p == nil {
@@ -234,7 +242,7 @@ func (d *Diagnostics) testProviderUpstream(ctx context.Context, p *registry.Prov
 	req.Model = in.UpstreamModel
 	req.Stream = false
 	req.ID = requestID
-	ch := &registry.Channel{Alias: in.UpstreamModel, Provider: p, UpstreamModel: in.UpstreamModel, Weight: 1}
+	ch := &registry.Channel{Alias: in.UpstreamModel, Provider: p, UpstreamModel: in.UpstreamModel, Weight: 1, Profile: profile}
 	callCtx, cancel := diagnosticTimeout(ctx, in.TimeoutMs)
 	defer cancel()
 	resp, err := d.eg.Send(callCtx, req, ch)

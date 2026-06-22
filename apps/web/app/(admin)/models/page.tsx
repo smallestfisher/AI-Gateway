@@ -53,6 +53,14 @@ export default function ModelsPage() {
     return m;
   }, [providers.data]);
 
+  const providerProtocol = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of providers.data ?? []) {
+      if (p.id) m.set(p.id, p.protocol);
+    }
+    return m;
+  }, [providers.data]);
+
   const channelsByModel = useMemo(() => {
     const m = new Map<string, ModelChannel[]>();
     for (const c of channels.list.data ?? []) {
@@ -247,6 +255,11 @@ export default function ModelsPage() {
         providerName={
           testingChannel
             ? (providerName.get(testingChannel.channel.provider_id) ?? null)
+            : null
+        }
+        providerProtocol={
+          testingChannel
+            ? (providerProtocol.get(testingChannel.channel.provider_id) ?? null)
             : null
         }
       />

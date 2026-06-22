@@ -11,6 +11,7 @@ import (
 
 	"github.com/aigateway/ai-hub/internal/adapter"
 	"github.com/aigateway/ai-hub/internal/adapter/openaichat"
+	"github.com/aigateway/ai-hub/internal/adapter/openairesponses"
 	"github.com/aigateway/ai-hub/internal/egress"
 	"github.com/aigateway/ai-hub/internal/ir"
 	"github.com/aigateway/ai-hub/internal/pipeline"
@@ -89,6 +90,36 @@ func TestDiagnosticsDirectUpstreamUsesProviderProtocol(t *testing.T) {
 	}
 	if !strings.HasPrefix(result.RequestID, "admin-diagnostic-") {
 		t.Fatalf("request id = %q", result.RequestID)
+	}
+}
+
+func TestDiagnosticsDirectUpstreamAppliesClientProfile(t *testing.T) {
+	var gotUA, gotClientName string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUA = r.Header.Get("User-Agent")
+		gotClientName = r.Header.Get("X-Client-Name")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"resp_test","object":"response","model":"gpt-5.5","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"pong"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`))
+	}))
+	defer srv.Close()
+
+	d := NewDiagnostics(nil, adapter.NewRegistry(openaichat.New(), openairesponses.New()), nil)
+	result := d.testProviderUpstreamWithProfile(context.Background(), &registry.Provider{
+		ID: "p1", Name: "Provider 1", Protocol: adapter.ProtocolResponses,
+		BaseURL: srv.URL, APIKey: "sk-test", Timeout: 5 * time.Second,
+	}, &registry.ClientProfile{
+		UserAgent: "codex-cli/0.137.0 (external, cli)",
+		Headers:   map[string]string{"X-Client-Name": "codex-cli"},
+	}, UpstreamTestInput{UpstreamModel: "gpt-5.5", Message: "ping"})
+
+	if !result.OK {
+		t.Fatalf("result failed: %+v", result)
+	}
+	if gotUA != "codex-cli/0.137.0 (external, cli)" {
+		t.Fatalf("User-Agent = %q", gotUA)
+	}
+	if gotClientName != "codex-cli" {
+		t.Fatalf("X-Client-Name = %q", gotClientName)
 	}
 }
 

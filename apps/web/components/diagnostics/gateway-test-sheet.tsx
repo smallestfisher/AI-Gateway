@@ -43,14 +43,17 @@ export function GatewayTestSheet({
   channel,
   alias,
   providerName,
+  providerProtocol,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   channel: ModelChannel | null;
   alias: string | null;
   providerName: string | null;
+  providerProtocol?: string | null;
 }) {
-  const [clientProtocol, setClientProtocol] = useState("openai_chat");
+  const [clientProtocolOverride, setClientProtocolOverride] = useState<string | null>(null);
+  const clientProtocol = clientProtocolOverride ?? providerProtocol ?? "openai_chat";
   const [message, setMessage] = useState("ping");
   const [result, setResult] = useState<DiagnosticResult | null>(null);
   const historyKey =
@@ -105,7 +108,7 @@ export function GatewayTestSheet({
         <div className="mt-5 space-y-4">
           <div className="space-y-2">
             <Label>客户端协议</Label>
-            <Select value={clientProtocol} onValueChange={setClientProtocol}>
+            <Select value={clientProtocol} onValueChange={setClientProtocolOverride}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
