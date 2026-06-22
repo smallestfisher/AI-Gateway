@@ -316,6 +316,83 @@ func (s *Store) CreateChannel(ctx context.Context, c ModelChannel) (string, erro
 	return id, err
 }
 
+func (s *Store) BulkCreateProviderModelChannels(ctx context.Context, providerID string, in BulkModelChannelInput) (BulkModelChannelResult, error) {
+	if providerID == "" {
+		return BulkModelChannelResult{}, ErrValidation
+	}
+	in, err := normalizeBulkModelChannelInput(in)
+	if err != nil {
+		return BulkModelChannelResult{}, err
+	}
+
+	res := BulkModelChannelResult{
+		Items: make([]BulkModelChannelRowResult, 0, len(in.Items)),
+	}
+	err = s.inTx(ctx, func(tx pgx.Tx) error {
+		var exists string
+		if err := tx.QueryRow(ctx, `SELECT id FROM providers WHERE id=$1`, providerID).Scan(&exists); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return fmt.Errorf("admin: %w: %s", ErrNotFound, providerID)
+			}
+			return err
+		}
+
+		for _, item := range in.Items {
+			row := BulkModelChannelRowResult{
+				Alias:         item.Alias,
+				UpstreamModel: item.UpstreamModel,
+			}
+			var modelCreated bool
+			if err := tx.QueryRow(ctx, `
+				WITH inserted AS (
+					INSERT INTO models (alias, display_name, enabled)
+					VALUES ($1, $2, true)
+					ON CONFLICT (alias) DO NOTHING
+					RETURNING id, true AS created
+				)
+				SELECT id, created FROM inserted
+				UNION ALL
+				SELECT id, false AS created FROM models
+				WHERE alias = $1 AND NOT EXISTS (SELECT 1 FROM inserted)
+				LIMIT 1`,
+				item.Alias, item.DisplayName,
+			).Scan(&row.ModelID, &modelCreated); err != nil {
+				return err
+			}
+			if modelCreated {
+				res.CreatedModels++
+			}
+
+			err := tx.QueryRow(ctx, `
+				INSERT INTO model_channels (model_id, provider_id, upstream_model, weight, priority, enabled)
+				VALUES ($1, $2, $3, $4, $5, $6)
+				ON CONFLICT (model_id, provider_id, upstream_model) DO NOTHING
+				RETURNING id`,
+				row.ModelID, providerID, item.UpstreamModel, in.Weight, in.Priority, in.Enabled,
+			).Scan(&row.ChannelID)
+			if errors.Is(err, pgx.ErrNoRows) {
+				if err := tx.QueryRow(ctx, `
+					SELECT id FROM model_channels
+					WHERE model_id=$1 AND provider_id=$2 AND upstream_model=$3`,
+					row.ModelID, providerID, item.UpstreamModel,
+				).Scan(&row.ChannelID); err != nil {
+					return err
+				}
+				row.Status = "skipped"
+				res.SkippedChannels++
+			} else if err != nil {
+				return err
+			} else {
+				row.Status = "created"
+				res.CreatedChannels++
+			}
+			res.Items = append(res.Items, row)
+		}
+		return nil
+	})
+	return res, err
+}
+
 func (s *Store) DeleteChannel(ctx context.Context, id string) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		tag, err := tx.Exec(ctx, `DELETE FROM model_channels WHERE id=$1`, id)

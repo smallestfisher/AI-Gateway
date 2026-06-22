@@ -89,6 +89,17 @@ func Mount(app *fiber.App, st *Store, token string, opts ...MountOption) {
 		items, err := st.ListUpstreamModels(c.UserContext(), c.Params("id"))
 		return listResp(c, items, err)
 	})
+	g.Post("/providers/:id/bulk-model-channels", func(c *fiber.Ctx) error {
+		var in BulkModelChannelInput
+		if err := c.BodyParser(&in); err != nil {
+			return c.Status(400).JSON(errMap("bad_request", err.Error()))
+		}
+		res, err := st.BulkCreateProviderModelChannels(c.UserContext(), c.Params("id"), in)
+		if err != nil {
+			return writeErr(c, err)
+		}
+		return c.JSON(res)
+	})
 	if mo.diagnostics != nil {
 		g.Post("/providers/:id/test-upstream", func(c *fiber.Ctx) error {
 			var in UpstreamTestInput

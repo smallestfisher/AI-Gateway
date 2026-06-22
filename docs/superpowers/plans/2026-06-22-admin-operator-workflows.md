@@ -62,7 +62,7 @@ Docs:
 - Modify: `internal/admin/store.go`
 - Modify: `internal/admin/admin.go`
 
-- [ ] **Step 1: Write failing bulk sync tests**
+- [x] **Step 1: Write failing bulk sync tests**
 
 Create `internal/admin/model_sync_test.go` with tests named:
 
@@ -92,7 +92,7 @@ Expected behavior:
 - Second test returns `SkippedChannels == 1` on the second call.
 - Third test returns `ErrValidation` for aliases not matching `^[a-zA-Z0-9_.\\-/]+$`.
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run:
 
@@ -102,7 +102,7 @@ GOCACHE=/tmp/go-build go test ./internal/admin -run 'TestBulkCreateProviderModel
 
 Expected: FAIL because `BulkModelChannelInput` and `BulkCreateProviderModelChannels` do not exist.
 
-- [ ] **Step 3: Add DTOs and validation**
+- [x] **Step 3: Add DTOs and validation**
 
 Create `internal/admin/model_sync.go` with:
 
@@ -143,7 +143,7 @@ type BulkModelChannelRowResult struct {
 }
 ```
 
-- [ ] **Step 4: Implement Store bulk method**
+- [x] **Step 4: Implement Store bulk method**
 
 Add to `internal/admin/store.go`:
 
@@ -163,7 +163,7 @@ Implementation requirements:
   - Count created/skipped rows.
 - Call `s.invalidate(ctx)` after commit through existing `s.inTx`.
 
-- [ ] **Step 5: Add Admin route**
+- [x] **Step 5: Add Admin route**
 
 In `internal/admin/admin.go`, add after upstream model listing:
 
@@ -181,7 +181,7 @@ g.Post("/providers/:id/bulk-model-channels", func(c *fiber.Ctx) error {
 })
 ```
 
-- [ ] **Step 6: Run backend tests**
+- [x] **Step 6: Run backend tests**
 
 Run:
 
@@ -192,7 +192,7 @@ GOCACHE=/tmp/go-build go test ./internal/admin -run 'TestBulkCreateProviderModel
 
 Expected: PASS, with DB/Redis integration tests skipped only when test env vars are missing.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add internal/admin/model_sync.go internal/admin/model_sync_test.go internal/admin/store.go internal/admin/admin.go
