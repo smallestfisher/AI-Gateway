@@ -67,7 +67,10 @@ func main() {
 
 	// Admin API (config CRUD + hot-reload trigger).
 	if pool != nil && cfg.AdminToken != "" {
-		admin.Mount(app, admin.NewStore(pool, rdb), cfg.AdminToken)
+		st := admin.NewStore(pool, rdb)
+		admin.Mount(app, st, cfg.AdminToken,
+			admin.WithDiagnostics(admin.NewDiagnostics(st, registryHub, pipe)),
+		)
 		log.Info("admin API enabled", "prefix", "/api/admin")
 	} else if cfg.AdminToken == "" {
 		log.Warn("admin API disabled (GATEWAY_ADMIN_TOKEN not set)")

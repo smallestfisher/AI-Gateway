@@ -9,9 +9,25 @@ import (
 
 // Mount registers the /api/admin routes on the app. If token is empty admin is
 // considered disabled and nothing is mounted.
-func Mount(app *fiber.App, st *Store, token string) {
+type MountOption func(*mountOptions)
+
+type mountOptions struct {
+	diagnostics *Diagnostics
+}
+
+func WithDiagnostics(d *Diagnostics) MountOption {
+	return func(o *mountOptions) {
+		o.diagnostics = d
+	}
+}
+
+func Mount(app *fiber.App, st *Store, token string, opts ...MountOption) {
 	if token == "" {
 		return
+	}
+	var mo mountOptions
+	for _, opt := range opts {
+		opt(&mo)
 	}
 	g := app.Group("/api/admin", authMiddleware(token))
 
@@ -73,6 +89,24 @@ func Mount(app *fiber.App, st *Store, token string) {
 		items, err := st.ListUpstreamModels(c.UserContext(), c.Params("id"))
 		return listResp(c, items, err)
 	})
+	if mo.diagnostics != nil {
+		g.Post("/providers/:id/test-upstream", func(c *fiber.Ctx) error {
+			var in UpstreamTestInput
+			if err := c.BodyParser(&in); err != nil {
+				return c.Status(400).JSON(errMap("bad_request", err.Error()))
+			}
+			result := mo.diagnostics.TestProviderUpstream(c.UserContext(), c.Params("id"), in)
+			return c.Status(diagnosticHTTPStatus(result)).JSON(result)
+		})
+		g.Post("/test-gateway", func(c *fiber.Ctx) error {
+			var in GatewayTestInput
+			if err := c.BodyParser(&in); err != nil {
+				return c.Status(400).JSON(errMap("bad_request", err.Error()))
+			}
+			result := mo.diagnostics.TestGatewayPath(c.UserContext(), in)
+			return c.Status(diagnosticHTTPStatus(result)).JSON(result)
+		})
+	}
 	g.Put("/providers/:id", func(c *fiber.Ctx) error {
 		var p Provider
 		if err := c.BodyParser(&p); err != nil {

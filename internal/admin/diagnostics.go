@@ -246,3 +246,116 @@ func (d *Diagnostics) testProviderUpstream(ctx context.Context, p *registry.Prov
 		ResponsePreview: diagnosticPreview(resp, diagnosticPreviewLimit),
 	}
 }
+
+func (d *Diagnostics) TestGatewayPath(ctx context.Context, in GatewayTestInput) DiagnosticResult {
+	start := time.Now()
+	base := DiagnosticResult{
+		Mode:           "gateway",
+		ClientProtocol: in.ClientProtocol,
+		Alias:          in.Alias,
+		ProviderID:     in.ProviderID,
+		UpstreamModel:  in.UpstreamModel,
+	}
+	if d == nil || d.pipe == nil || d.adapters == nil || d.eg == nil {
+		return diagnosticFailure("gateway", start, base, ErrValidation)
+	}
+	proto := adapter.Protocol(in.ClientProtocol)
+	if proto == "" {
+		proto = adapter.ProtocolChat
+	}
+	ingress, ok := d.adapters.Get(proto)
+	if !ok {
+		return diagnosticFailure("gateway", start, base, fmt.Errorf("protocol_disabled: %s", proto))
+	}
+	if strings.TrimSpace(in.Alias) == "" {
+		return diagnosticFailure("gateway", start, base, ErrValidation)
+	}
+	raw, err := buildDiagnosticWireRequest(proto, in.Alias, in.Message)
+	if err != nil {
+		return diagnosticFailure("gateway", start, base, err)
+	}
+	req, err := ingress.DecodeRequest(raw, nil)
+	if err != nil {
+		return diagnosticFailure("gateway", start, base, fmt.Errorf("decode_failed: %w", err))
+	}
+	req.ID = "admin-diagnostic"
+	req.Model = in.Alias
+	req.Stream = false
+	callCtx, cancel := diagnosticTimeout(ctx, in.TimeoutMs)
+	defer cancel()
+
+	if in.ProviderID != "" {
+		ch, err := d.findForcedChannel(in.Alias, in.ProviderID, in.UpstreamModel)
+		if err != nil {
+			return diagnosticFailure("gateway", start, base, err)
+		}
+		resp, err := d.eg.Send(callCtx, req, ch)
+		if err != nil {
+			return diagnosticFailure("gateway", start, base, err)
+		}
+		return diagnosticSuccessGateway(start, proto, in.Alias, ch, resp)
+	}
+
+	resp, err := d.pipe.Run(callCtx, req)
+	if err != nil {
+		return diagnosticFailure("gateway", start, base, err)
+	}
+	return DiagnosticResult{
+		OK:              true,
+		Mode:            "gateway",
+		ClientProtocol:  string(proto),
+		Alias:           in.Alias,
+		ProviderID:      resp.ProviderID,
+		UpstreamModel:   resp.UpstreamModel,
+		LatencyMs:       int(time.Since(start).Milliseconds()),
+		HTTPStatus:      http.StatusOK,
+		StopReason:      string(resp.StopReason),
+		Usage:           &resp.Usage,
+		ResponsePreview: diagnosticPreview(resp, diagnosticPreviewLimit),
+	}
+}
+
+func (d *Diagnostics) findForcedChannel(alias, providerID, upstreamModel string) (*registry.Channel, error) {
+	snap, err := d.pipe.Snapshot()
+	if err != nil {
+		return nil, err
+	}
+	for _, ch := range snap.ChannelsFor(alias) {
+		if ch.Provider == nil || ch.Provider.ID != providerID {
+			continue
+		}
+		if upstreamModel != "" && ch.UpstreamModel != upstreamModel {
+			continue
+		}
+		return ch, nil
+	}
+	return nil, fmt.Errorf("admin diagnostics: %w: %s/%s", ErrNotFound, alias, providerID)
+}
+
+func diagnosticSuccessGateway(start time.Time, proto adapter.Protocol, alias string, ch *registry.Channel, resp *ir.UnifiedResponse) DiagnosticResult {
+	usage := resp.Usage
+	providerName := ""
+	providerID := resp.ProviderID
+	upstreamModel := resp.UpstreamModel
+	if ch != nil {
+		upstreamModel = ch.UpstreamModel
+		if ch.Provider != nil {
+			providerID = ch.Provider.ID
+			providerName = ch.Provider.Name
+		}
+	}
+	return DiagnosticResult{
+		OK:              true,
+		Mode:            "gateway",
+		ClientProtocol:  string(proto),
+		Alias:           alias,
+		ProviderID:      providerID,
+		ProviderName:    providerName,
+		UpstreamModel:   upstreamModel,
+		LatencyMs:       int(time.Since(start).Milliseconds()),
+		HTTPStatus:      http.StatusOK,
+		StopReason:      string(resp.StopReason),
+		Usage:           &usage,
+		ResponsePreview: diagnosticPreview(resp, diagnosticPreviewLimit),
+	}
+}

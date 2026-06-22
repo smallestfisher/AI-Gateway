@@ -10,8 +10,11 @@ import (
 
 	"github.com/aigateway/ai-hub/internal/adapter"
 	"github.com/aigateway/ai-hub/internal/adapter/openaichat"
+	"github.com/aigateway/ai-hub/internal/egress"
 	"github.com/aigateway/ai-hub/internal/ir"
+	"github.com/aigateway/ai-hub/internal/pipeline"
 	"github.com/aigateway/ai-hub/internal/registry"
+	"github.com/aigateway/ai-hub/internal/router"
 )
 
 func TestDiagnosticsMinimalRequestByProtocol(t *testing.T) {
@@ -82,6 +85,47 @@ func TestDiagnosticsDirectUpstreamUsesProviderProtocol(t *testing.T) {
 	}
 	if result.ResponsePreview != "pong" || result.Usage == nil || result.Usage.OutputTokens != 1 {
 		t.Fatalf("bad result: %+v", result)
+	}
+}
+
+func TestDiagnosticsGatewayForcedChannelUsesSelectedProvider(t *testing.T) {
+	var hitProvider string
+	srvA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hitProvider = "a"
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"chatcmpl_a","object":"chat.completion","model":"model-a","choices":[{"index":0,"message":{"role":"assistant","content":"from-a"},"finish_reason":"stop"}]}`))
+	}))
+	defer srvA.Close()
+	srvB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hitProvider = "b"
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"chatcmpl_b","object":"chat.completion","model":"model-b","choices":[{"index":0,"message":{"role":"assistant","content":"from-b"},"finish_reason":"stop"}]}`))
+	}))
+	defer srvB.Close()
+
+	reg := adapter.NewRegistry(openaichat.New())
+	pA := &registry.Provider{ID: "pa", Name: "A", Protocol: adapter.ProtocolChat, BaseURL: srvA.URL, APIKey: "sk-a", Timeout: 5 * time.Second}
+	pB := &registry.Provider{ID: "pb", Name: "B", Protocol: adapter.ProtocolChat, BaseURL: srvB.URL, APIKey: "sk-b", Timeout: 5 * time.Second}
+	snap := registry.NewBuilder().
+		AddChannel(&registry.Channel{Alias: "alias", Provider: pA, UpstreamModel: "model-a", Weight: 1}).
+		AddChannel(&registry.Channel{Alias: "alias", Provider: pB, UpstreamModel: "model-b", Weight: 1}).
+		Build()
+	pipe := pipeline.New(router.New(registry.NewStatic(snap)), egress.New(reg))
+	d := NewDiagnostics(nil, reg, pipe)
+
+	result := d.TestGatewayPath(context.Background(), GatewayTestInput{
+		ClientProtocol: string(adapter.ProtocolChat),
+		Alias:          "alias",
+		ProviderID:     "pb",
+		UpstreamModel:  "model-b",
+		Message:        "ping",
+	})
+
+	if !result.OK {
+		t.Fatalf("result failed: %+v", result)
+	}
+	if hitProvider != "b" || result.ProviderID != "pb" || result.ResponsePreview != "from-b" {
+		t.Fatalf("forced channel not used: hit=%s result=%+v", hitProvider, result)
 	}
 }
 
