@@ -35,7 +35,7 @@ func setup(t *testing.T) (*pgxpool.Pool, *redis.Client, *fiber.App, *registrydb.
 	}
 	t.Cleanup(pool.Close)
 	// clean config tables
-	for _, tbl := range []string{"model_channels", "client_profiles", "router_policies", "models", "providers", "request_logs", "api_keys", "user_quotas", "users"} {
+	for _, tbl := range []string{"model_channels", "client_profiles", "router_policies", "models", "providers", "request_logs", "audit_logs", "api_keys", "user_quotas", "users"} {
 		if _, err := pool.Exec(context.Background(), "DELETE FROM "+tbl); err != nil {
 			t.Fatal(err)
 		}

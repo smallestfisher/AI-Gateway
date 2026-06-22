@@ -186,7 +186,7 @@ func (s *Store) CreateProvider(ctx context.Context, p Provider) (string, error) 
 	}
 	var id string
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, `
+		if err := tx.QueryRow(ctx, `
 			INSERT INTO providers (name, protocol, base_url, api_key_enc, proxy_id,
 				timeout_ms, connect_timeout_ms, max_retries, weight, priority, enabled,
 				hc_error_rate, hc_p95_ttft_ms, hc_window_sec, hc_cooldown_sec, metadata)
@@ -197,7 +197,13 @@ func (s *Store) CreateProvider(ctx context.Context, p Provider) (string, error) 
 			nz(p.Weight, 1), p.Priority, p.Enabled,
 			fnz(p.HCErrorRate, 0.3), nz(p.HCP95TTFTMs, 8000), nz(p.HCWindowSec, 60), nz(p.HCCooldownSec, 30),
 			marshalJSON(p.Metadata),
-		).Scan(&id)
+		).Scan(&id); err != nil {
+			return err
+		}
+		return insertAudit(ctx, tx, "provider.create", "provider", id, map[string]any{
+			"name": p.Name, "protocol": p.Protocol, "base_url": p.BaseURL, "api_key": p.APIKey,
+			"enabled": p.Enabled, "proxy_id": p.ProxyID,
+		})
 	})
 	return id, err
 }
@@ -219,7 +225,13 @@ func (s *Store) UpdateProvider(ctx context.Context, id string, p Provider) error
 		if err != nil {
 			return err
 		}
-		return assertRowsAffected(tag, id)
+		if err := assertRowsAffected(tag, id); err != nil {
+			return err
+		}
+		return insertAudit(ctx, tx, "provider.update", "provider", id, map[string]any{
+			"name": p.Name, "protocol": p.Protocol, "base_url": p.BaseURL, "api_key": p.APIKey,
+			"enabled": p.Enabled, "proxy_id": p.ProxyID,
+		})
 	})
 	return err
 }
@@ -230,7 +242,10 @@ func (s *Store) DeleteProvider(ctx context.Context, id string) error {
 		if err != nil {
 			return err
 		}
-		return assertRowsAffected(tag, id)
+		if err := assertRowsAffected(tag, id); err != nil {
+			return err
+		}
+		return insertAudit(ctx, tx, "provider.delete", "provider", id, map[string]any{"id": id})
 	})
 }
 
@@ -261,10 +276,15 @@ func (s *Store) CreateModel(ctx context.Context, m Model) (string, error) {
 	}
 	var id string
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx,
+		if err := tx.QueryRow(ctx,
 			`INSERT INTO models (alias, display_name, description, enabled) VALUES ($1,$2,$3,$4) RETURNING id`,
 			m.Alias, firstNonEmpty(m.DisplayName, m.Alias), m.Description, m.Enabled,
-		).Scan(&id)
+		).Scan(&id); err != nil {
+			return err
+		}
+		return insertAudit(ctx, tx, "model.create", "model", id, map[string]any{
+			"alias": m.Alias, "display_name": firstNonEmpty(m.DisplayName, m.Alias), "enabled": m.Enabled,
+		})
 	})
 	return id, err
 }
@@ -275,7 +295,10 @@ func (s *Store) DeleteModel(ctx context.Context, id string) error {
 		if err != nil {
 			return err
 		}
-		return assertRowsAffected(tag, id)
+		if err := assertRowsAffected(tag, id); err != nil {
+			return err
+		}
+		return insertAudit(ctx, tx, "model.delete", "model", id, map[string]any{"id": id})
 	})
 }
 
@@ -307,11 +330,17 @@ func (s *Store) CreateChannel(ctx context.Context, c ModelChannel) (string, erro
 	}
 	var id string
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx,
+		if err := tx.QueryRow(ctx,
 			`INSERT INTO model_channels (model_id, provider_id, upstream_model, weight, priority, enabled)
 			 VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
 			c.ModelID, c.ProviderID, c.UpstreamModel, nz(c.Weight, 1), c.Priority, c.Enabled,
-		).Scan(&id)
+		).Scan(&id); err != nil {
+			return err
+		}
+		return insertAudit(ctx, tx, "channel.create", "channel", id, map[string]any{
+			"model_id": c.ModelID, "provider_id": c.ProviderID, "upstream_model": c.UpstreamModel,
+			"weight": nz(c.Weight, 1), "priority": c.Priority, "enabled": c.Enabled,
+		})
 	})
 	return id, err
 }
@@ -388,7 +417,10 @@ func (s *Store) BulkCreateProviderModelChannels(ctx context.Context, providerID 
 			}
 			res.Items = append(res.Items, row)
 		}
-		return nil
+		return insertAudit(ctx, tx, "channel.bulk_create", "provider", providerID, map[string]any{
+			"provider_id": providerID, "created_models": res.CreatedModels, "created_channels": res.CreatedChannels,
+			"skipped_channels": res.SkippedChannels, "items": auditBulkModelChannelItems(res.Items),
+		})
 	})
 	return res, err
 }
@@ -399,7 +431,10 @@ func (s *Store) DeleteChannel(ctx context.Context, id string) error {
 		if err != nil {
 			return err
 		}
-		return assertRowsAffected(tag, id)
+		if err := assertRowsAffected(tag, id); err != nil {
+			return err
+		}
+		return insertAudit(ctx, tx, "channel.delete", "channel", id, map[string]any{"id": id})
 	})
 }
 
@@ -438,13 +473,19 @@ func (s *Store) CreateProfile(ctx context.Context, p ClientProfile) (string, err
 	}
 	var id string
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx,
+		if err := tx.QueryRow(ctx,
 			`INSERT INTO client_profiles (name, scope, target_id, headers, user_agent, origin, referer,
 			  strip_client_headers, enabled)
 			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
 			p.Name, p.Scope, p.TargetID, marshalJSON(p.Headers), p.UserAgent, p.Origin, p.Referer,
 			p.StripClientHeaders, p.Enabled,
-		).Scan(&id)
+		).Scan(&id); err != nil {
+			return err
+		}
+		return insertAudit(ctx, tx, "profile.create", "profile", id, map[string]any{
+			"name": p.Name, "scope": p.Scope, "target_id": p.TargetID, "headers": p.Headers,
+			"user_agent": p.UserAgent, "origin": p.Origin, "referer": p.Referer, "enabled": p.Enabled,
+		})
 	})
 	return id, err
 }
@@ -455,7 +496,10 @@ func (s *Store) DeleteProfile(ctx context.Context, id string) error {
 		if err != nil {
 			return err
 		}
-		return assertRowsAffected(tag, id)
+		if err := assertRowsAffected(tag, id); err != nil {
+			return err
+		}
+		return insertAudit(ctx, tx, "profile.delete", "profile", id, map[string]any{"id": id})
 	})
 }
 
@@ -498,11 +542,16 @@ func (s *Store) UpsertPolicy(ctx context.Context, p RouterPolicy) (string, error
 				return err
 			}
 		}
-		return tx.QueryRow(ctx,
+		if err := tx.QueryRow(ctx,
 			`INSERT INTO router_policies (scope, model_id, mode, params, enabled)
 			 VALUES ($1,$2,$3,$4,$5) RETURNING id`,
 			p.Scope, p.ModelID, p.Mode, marshalJSON(p.Params), p.Enabled,
-		).Scan(&id)
+		).Scan(&id); err != nil {
+			return err
+		}
+		return insertAudit(ctx, tx, "policy.upsert", "policy", id, map[string]any{
+			"scope": p.Scope, "model_id": p.ModelID, "mode": p.Mode, "params": p.Params, "enabled": p.Enabled,
+		})
 	})
 	return id, err
 }
@@ -531,7 +580,12 @@ func (s *Store) CreateUser(ctx context.Context, name, email string, balance int6
 		}
 		_, e := tx.Exec(ctx, `INSERT INTO user_quotas (user_id,balance) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
 			id, balance)
-		return e
+		if e != nil {
+			return e
+		}
+		return insertAudit(ctx, tx, "user.create", "user", id, map[string]any{
+			"name": name, "email": email, "balance": balance,
+		})
 	})
 	return id, err
 }
@@ -543,10 +597,15 @@ func (s *Store) IssueAPIKey(ctx context.Context, userID, name string) (raw, id s
 	}
 	raw = generateKey()
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx,
+		if err := tx.QueryRow(ctx,
 			`INSERT INTO api_keys (user_id,name,key_prefix,key_hash,key_enc) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
 			userID, firstNonEmpty(name, "default"), raw[:16], auth.HashKey(raw), []byte(raw),
-		).Scan(&id)
+		).Scan(&id); err != nil {
+			return err
+		}
+		return insertAudit(ctx, tx, "api_key.issue", "api_key", id, map[string]any{
+			"user_id": userID, "name": firstNonEmpty(name, "default"), "key": raw,
+		})
 	})
 	return raw, id, err
 }
@@ -568,7 +627,12 @@ func (s *Store) SetQuota(ctx context.Context, userID string, balance int64, rpm,
 				balance=EXCLUDED.balance, rpm_limit=EXCLUDED.rpm_limit, tpm_limit=EXCLUDED.tpm_limit,
 				model_whitelist=EXCLUDED.model_whitelist, updated_at=now()`,
 			userID, balance, intPtr(rpm), intPtr(tpm), wl)
-		return err
+		if err != nil {
+			return err
+		}
+		return insertAudit(ctx, tx, "quota.update", "user", userID, map[string]any{
+			"user_id": userID, "balance": balance, "rpm": rpm, "tpm": tpm, "whitelist": whitelist,
+		})
 	})
 }
 
@@ -614,7 +678,12 @@ func (s *Store) UpdateUser(ctx context.Context, id string, name, email, status s
 		if err != nil {
 			return err
 		}
-		return assertRowsAffected(tag, id)
+		if err := assertRowsAffected(tag, id); err != nil {
+			return err
+		}
+		return insertAudit(ctx, tx, "user.update", "user", id, map[string]any{
+			"name": name, "email": email, "status": status,
+		})
 	})
 }
 
@@ -628,7 +697,10 @@ func (s *Store) DeleteUser(ctx context.Context, id string) error {
 		if err != nil {
 			return err
 		}
-		return assertRowsAffected(tag, id)
+		if err := assertRowsAffected(tag, id); err != nil {
+			return err
+		}
+		return insertAudit(ctx, tx, "user.delete", "user", id, map[string]any{"id": id})
 	})
 }
 
@@ -670,7 +742,10 @@ func (s *Store) RevokeAPIKey(ctx context.Context, id string) error {
 		if err != nil {
 			return err
 		}
-		return assertRowsAffected(tag, id)
+		if err := assertRowsAffected(tag, id); err != nil {
+			return err
+		}
+		return insertAudit(ctx, tx, "api_key.revoke", "api_key", id, map[string]any{"id": id})
 	})
 }
 

@@ -50,6 +50,9 @@ func Mount(app *fiber.App, st *Store, token string, opts ...MountOption) {
 		if err := st.invalidate(c.UserContext()); err != nil {
 			return writeErr(c, err)
 		}
+		if err := st.RecordAudit(c.UserContext(), "config.reload", "config", "", map[string]any{"status": "reloaded"}); err != nil {
+			return writeErr(c, err)
+		}
 		return c.JSON(fiber.Map{"status": "reloaded"})
 	})
 
@@ -84,6 +87,13 @@ func Mount(app *fiber.App, st *Store, token string, opts ...MountOption) {
 			return writeErr(c, err)
 		}
 		return c.JSON(res) // { data, total }
+	})
+	g.Get("/audit-logs", func(c *fiber.Ctx) error {
+		res, err := st.ListAuditLogs(c.UserContext(), parseAuditFilter(c))
+		if err != nil {
+			return writeErr(c, err)
+		}
+		return c.JSON(res)
 	})
 
 	// providers

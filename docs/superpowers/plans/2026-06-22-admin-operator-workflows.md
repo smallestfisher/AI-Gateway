@@ -492,7 +492,7 @@ git commit -m "fix(web): normalize admin form feedback"
 - Modify: `internal/admin/store.go`
 - Modify: `internal/admin/admin.go`
 
-- [ ] **Step 1: Add audit DTOs and filter tests**
+- [x] **Step 1: Add audit DTOs and filter tests**
 
 Create tests for:
 
@@ -502,7 +502,7 @@ func TestListAuditLogsFiltersByActionAndTarget(t *testing.T)
 func TestProviderCreateRecordsAuditLog(t *testing.T)
 ```
 
-- [ ] **Step 2: Implement audit helpers**
+- [x] **Step 2: Implement audit helpers**
 
 Create:
 
@@ -532,7 +532,7 @@ type AuditFilter struct {
 
 Add redaction for keys containing `api_key`, `key`, `secret`, `token`, `authorization`.
 
-- [ ] **Step 3: Record audits in write transactions**
+- [x] **Step 3: Record audits in write transactions**
 
 Add a transaction helper:
 
@@ -542,7 +542,7 @@ func insertAudit(ctx context.Context, tx pgx.Tx, action, targetType, targetID st
 
 Call it in existing Store write methods after the write succeeds and before transaction commit.
 
-- [ ] **Step 4: Add audit list route**
+- [x] **Step 4: Add audit list route**
 
 Register:
 
@@ -552,7 +552,7 @@ GET /api/admin/audit-logs
 
 Parse filters like `logs.go` does.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 Run:
 
@@ -563,7 +563,7 @@ GOCACHE=/tmp/go-build go test ./internal/admin -run 'TestAudit|TestProviderCreat
 
 Expected: PASS or DB/Redis integration skips when env vars are missing.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add internal/admin/audit.go internal/admin/audit_test.go internal/admin/store.go internal/admin/admin.go
