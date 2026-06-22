@@ -67,6 +67,7 @@ export default function ModelsPage() {
   async function createModel(body: Partial<Model>) {
     await models.create.mutateAsync(body);
     toast.success("模型已创建");
+    setModelFormOpen(false);
   }
 
   async function confirmDeleteModel() {
@@ -87,6 +88,7 @@ export default function ModelsPage() {
     if (!channelTarget?.id) return;
     await channels.create.mutateAsync({ ...body, model_id: channelTarget.id });
     toast.success("通道已绑定");
+    setChannelTarget(null);
   }
 
   async function confirmDeleteChannel() {

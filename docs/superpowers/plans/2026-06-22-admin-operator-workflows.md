@@ -436,7 +436,7 @@ git commit -m "feat: add log details and health status"
 - Modify: `apps/web/app/(admin)/users/page.tsx`
 - Modify if needed: `apps/web/components/form-sheet.tsx`
 
-- [ ] **Step 1: Close create/update sheets after success**
+- [x] **Step 1: Close create/update sheets after success**
 
 For each page submit handler, after successful mutation:
 
@@ -447,7 +447,7 @@ setEditing(null);
 
 Use the page's existing state names.
 
-- [ ] **Step 2: Refresh dependent queries**
+- [x] **Step 2: Refresh dependent queries**
 
 Ensure these are invalidated/refetched after writes:
 
@@ -458,11 +458,13 @@ Ensure these are invalidated/refetched after writes:
 - Router write: policies.
 - Users/key/quota write: users and current apiKeys query.
 
-- [ ] **Step 3: Add "save and continue" only for create-heavy sheets**
+- [x] **Step 3: Defer "save and continue" to a focused FormSheet enhancement**
 
-Apply to Model and Channel creation only. Keep default submit as save-and-close.
+The current `FormSheet` supports one submit path. This pass keeps default
+submit as save-and-close and avoids adding a second submit path to the shared
+form component while larger audit/health work is in flight.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 Run:
 
@@ -473,7 +475,7 @@ pnpm build
 
 Expected: exit 0, only existing TanStack Table warning.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add 'apps/web/app/(admin)/providers/page.tsx' 'apps/web/app/(admin)/models/page.tsx' 'apps/web/app/(admin)/profiles/page.tsx' 'apps/web/app/(admin)/router/page.tsx' 'apps/web/app/(admin)/users/page.tsx' apps/web/components/form-sheet.tsx

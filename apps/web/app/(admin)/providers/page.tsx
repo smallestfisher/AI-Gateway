@@ -53,11 +53,14 @@ export default function ProvidersPage() {
       await create.mutateAsync(body);
       toast.success("供应商已创建");
     }
+    setOpen(false);
+    setEditing(null);
   }
   async function confirmDelete() {
     if (!pendingDelete?.id) return;
     try {
       await remove.mutateAsync(pendingDelete.id);
+      channels.refetch();
       toast.success("供应商已删除");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "删除失败");
