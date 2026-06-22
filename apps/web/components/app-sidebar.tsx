@@ -11,6 +11,7 @@ import {
   ScrollText,
   Activity,
   LayoutDashboard,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -48,6 +49,7 @@ const SECTIONS: { heading: string; items: NavItem[] }[] = [
     items: [
       { href: "/logs", label: "请求日志", icon: <ScrollText className="size-4" /> },
       { href: "/health", label: "健康状态", icon: <Activity className="size-4" /> },
+      { href: "/audit", label: "审计日志", icon: <ClipboardList className="size-4" /> },
     ],
   },
 ];

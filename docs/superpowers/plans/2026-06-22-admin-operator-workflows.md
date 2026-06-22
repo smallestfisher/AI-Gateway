@@ -580,7 +580,7 @@ git commit -m "feat: record admin audit logs"
 - Create: `apps/web/app/(admin)/audit/page.tsx`
 - Modify: `apps/web/components/app-sidebar.tsx`
 
-- [ ] **Step 1: Add types and query key**
+- [x] **Step 1: Add types and query key**
 
 Add `AuditLog`, `AuditLogList`, and `AuditFilter` interfaces.
 
@@ -590,7 +590,7 @@ Add:
 auditLogs: (filter: unknown) => ["audit-logs", filter] as const
 ```
 
-- [ ] **Step 2: Create Audit page**
+- [x] **Step 2: Create Audit page**
 
 The page should mirror Logs page density:
 
@@ -598,11 +598,11 @@ The page should mirror Logs page density:
 - Table columns: time, action, target, request ID.
 - Detail drawer with formatted redacted JSON diff.
 
-- [ ] **Step 3: Add sidebar item**
+- [x] **Step 3: Add sidebar item**
 
 Add `/audit` under "可观测" with `ClipboardList` from `lucide-react`.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 Run:
 
@@ -613,7 +613,7 @@ pnpm build
 
 Expected: exit 0, only existing TanStack Table warning.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/lib/types.ts apps/web/lib/query-keys.ts 'apps/web/app/(admin)/audit/page.tsx' apps/web/components/app-sidebar.tsx

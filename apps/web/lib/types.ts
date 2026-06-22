@@ -218,6 +218,33 @@ export interface LogFilter {
   offset: number;
 }
 
+export interface AuditLog {
+  id: string;
+  timestamp: string;
+  actor_id?: string;
+  action: string;
+  target_type: string;
+  target_id?: string;
+  diff?: Record<string, unknown>;
+  request_id?: string;
+}
+
+export interface AuditLogList {
+  data: AuditLog[];
+  total: number;
+}
+
+export interface AuditFilter {
+  action?: string;
+  target_type?: string;
+  target_id?: string;
+  q?: string;
+  from?: string;
+  to?: string;
+  limit: number;
+  offset: number;
+}
+
 export interface HealthThresholds {
   error_rate: number;
   p95_ttft_ms: number;
