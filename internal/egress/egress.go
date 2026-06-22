@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -64,7 +65,7 @@ func (e *Egress) Send(ctx context.Context, req *ir.UnifiedRequest, ch *registry.
 		return nil, fmt.Errorf("egress: build upstream: %w", err)
 	}
 
-	httpReq, err := e.buildRequest(ctx, ch, up, false)
+	httpReq, err := e.buildRequest(ctx, req, ch, up, false)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +130,7 @@ func (e *Egress) SendStream(ctx context.Context, req *ir.UnifiedRequest, ch *reg
 	if err != nil {
 		return fmt.Errorf("egress: build upstream: %w", err)
 	}
-	httpReq, err := e.buildRequest(ctx, ch, up, true)
+	httpReq, err := e.buildRequest(ctx, req, ch, up, true)
 	if err != nil {
 		return err
 	}
@@ -231,7 +232,7 @@ func (e *Egress) adapterFor(ch *registry.Channel) (adapter.Adapter, error) {
 	return adp, nil
 }
 
-func (e *Egress) buildRequest(ctx context.Context, ch *registry.Channel, up *adapter.UpstreamRequest, stream bool) (*http.Request, error) {
+func (e *Egress) buildRequest(ctx context.Context, req *ir.UnifiedRequest, ch *registry.Channel, up *adapter.UpstreamRequest, stream bool) (*http.Request, error) {
 	fullURL := strings.TrimRight(ch.Provider.BaseURL, "/") + up.Path
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, fullURL, bytes.NewReader(up.Body))
 	if err != nil {
@@ -239,6 +240,12 @@ func (e *Egress) buildRequest(ctx context.Context, ch *registry.Channel, up *ada
 	}
 	hdr := http.Header{}
 	for k, v := range authHeaders(ch.Provider.Protocol, ch.Provider.APIKey) {
+		hdr.Set(k, v)
+	}
+	for k, v := range DefaultClientHeaders(clientProtocolForHeaders(req, ch)) {
+		hdr.Set(k, v)
+	}
+	for k, v := range dynamicClientHeaders(req) {
 		hdr.Set(k, v)
 	}
 	for k, v := range ch.Provider.Headers {
@@ -262,11 +269,54 @@ func (e *Egress) buildRequest(ctx context.Context, ch *registry.Channel, up *ada
 		}
 	}
 	hdr.Set("Content-Type", "application/json")
-	if stream {
+	if stream && hdr.Get("Accept") == "" {
 		hdr.Set("Accept", "text/event-stream")
 	}
 	httpReq.Header = hdr
 	return httpReq, nil
+}
+
+func clientProtocolForHeaders(req *ir.UnifiedRequest, ch *registry.Channel) adapter.Protocol {
+	if req != nil && req.ClientProtocol != "" {
+		return adapter.Protocol(req.ClientProtocol)
+	}
+	if ch != nil && ch.Provider != nil {
+		return ch.Provider.Protocol
+	}
+	return ""
+}
+
+func dynamicClientHeaders(req *ir.UnifiedRequest) map[string]string {
+	if req == nil || req.ID == "" {
+		return nil
+	}
+	if req.ClientProtocol == string(adapter.ProtocolMessages) {
+		return map[string]string{
+			"X-Claude-Code-Session-Id": req.ID,
+		}
+	}
+	if req.ClientProtocol != string(adapter.ProtocolResponses) {
+		return nil
+	}
+	windowID := req.ID + ":0"
+	metadata := map[string]any{
+		"request_kind":            "turn",
+		"sandbox":                 "seccomp",
+		"session_id":              req.ID,
+		"thread_id":               req.ID,
+		"thread_source":           "user",
+		"turn_id":                 req.ID,
+		"turn_started_at_unix_ms": time.Now().UnixMilli(),
+		"window_id":               windowID,
+	}
+	metadataJSON, _ := json.Marshal(metadata)
+	return map[string]string{
+		"Thread-Id":             req.ID,
+		"Session-Id":            req.ID,
+		"X-Client-Request-Id":   req.ID,
+		"X-Codex-Window-Id":     windowID,
+		"X-Codex-Turn-Metadata": string(metadataJSON),
+	}
 }
 
 func (e *Egress) clientFor(ch *registry.Channel) *http.Client {
@@ -283,6 +333,40 @@ func authHeaders(p adapter.Protocol, key string) map[string]string {
 		}
 	default: // openai_chat, openai_responses
 		return map[string]string{"Authorization": "Bearer " + key}
+	}
+}
+
+// DefaultClientHeaders returns CLI-like client headers for protocols commonly
+// restricted by upstream aggregators. Explicit provider/profile headers override
+// these defaults in buildRequest.
+func DefaultClientHeaders(p adapter.Protocol) map[string]string {
+	switch p {
+	case adapter.ProtocolResponses:
+		return map[string]string{
+			"Accept":                "application/json",
+			"Originator":            "codex-tui",
+			"User-Agent":            "codex-tui/0.139.0 (Ubuntu 24.4.0; x86_64) WindowsTerminal (codex-tui; 0.139.0)",
+			"X-Codex-Beta-Features": "terminal_resize_reflow",
+		}
+	case adapter.ProtocolMessages:
+		return map[string]string{
+			"Accept":                      "application/json",
+			"X-App":                       "cli",
+			"User-Agent":                  "claude-cli/2.1.181 (external, cli)",
+			"Anthropic-Version":           "2023-06-01",
+			"Anthropic-Beta":              "claude-code-20250219,context-1m-2025-08-07,interleaved-thinking-2025-05-14,redact-thinking-2026-02-12,context-management-2025-06-27,prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,effort-2025-11-24,structured-outputs-2025-12-15",
+			"X-Stainless-Os":              "Linux",
+			"X-Stainless-Arch":            "x64",
+			"X-Stainless-Lang":            "js",
+			"X-Stainless-Runtime":         "node",
+			"X-Stainless-Timeout":         "600",
+			"X-Stainless-Retry-Count":     "0",
+			"X-Stainless-Package-Version": "0.94.0",
+			"X-Stainless-Runtime-Version": "v24.3.0",
+			"Anthropic-Dangerous-Direct-Browser-Access": "true",
+		}
+	default:
+		return nil
 	}
 }
 

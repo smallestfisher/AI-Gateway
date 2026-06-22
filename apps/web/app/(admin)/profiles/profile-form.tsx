@@ -83,10 +83,12 @@ const HEADER_PRESETS: HeaderPreset[] = [
     id: "codex-cli",
     label: "Codex CLI",
     name: "Codex CLI",
-    userAgent: "codex-cli/0.137.0 (external, cli)",
+    userAgent:
+      "codex-tui/0.139.0 (Ubuntu 24.4.0; x86_64) WindowsTerminal (codex-tui; 0.139.0)",
     headers: [
-      { key: "OpenAI-Beta", value: "responses=v1" },
-      { key: "X-Client-Name", value: "codex-cli" },
+      { key: "Accept", value: "application/json" },
+      { key: "Originator", value: "codex-tui" },
+      { key: "X-Codex-Beta-Features", value: "terminal_resize_reflow" },
     ],
   },
   {
@@ -95,8 +97,23 @@ const HEADER_PRESETS: HeaderPreset[] = [
     name: "Claude Code",
     userAgent: "claude-cli/2.1.181 (external, cli)",
     headers: [
+      { key: "Accept", value: "application/json" },
+      { key: "X-App", value: "cli" },
       { key: "anthropic-version", value: "2023-06-01" },
-      { key: "anthropic-beta", value: "claude-code-20250219" },
+      {
+        key: "anthropic-beta",
+        value:
+          "claude-code-20250219,context-1m-2025-08-07,interleaved-thinking-2025-05-14,redact-thinking-2026-02-12,context-management-2025-06-27,prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,effort-2025-11-24,structured-outputs-2025-12-15",
+      },
+      { key: "X-Stainless-Os", value: "Linux" },
+      { key: "X-Stainless-Arch", value: "x64" },
+      { key: "X-Stainless-Lang", value: "js" },
+      { key: "X-Stainless-Runtime", value: "node" },
+      { key: "X-Stainless-Timeout", value: "600" },
+      { key: "X-Stainless-Retry-Count", value: "0" },
+      { key: "X-Stainless-Package-Version", value: "0.94.0" },
+      { key: "X-Stainless-Runtime-Version", value: "v24.3.0" },
+      { key: "Anthropic-Dangerous-Direct-Browser-Access", value: "true" },
     ],
   },
 ];

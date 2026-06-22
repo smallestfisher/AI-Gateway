@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aigateway/ai-hub/internal/adapter"
+	"github.com/aigateway/ai-hub/internal/egress"
 	"github.com/aigateway/ai-hub/internal/registry"
 )
 
@@ -46,6 +47,9 @@ func (s *Store) ListUpstreamModels(ctx context.Context, providerID string) ([]Up
 		return nil, err
 	}
 	for k, v := range modelListAuthHeaders(p.Protocol, p.APIKey) {
+		req.Header.Set(k, v)
+	}
+	for k, v := range egress.DefaultClientHeaders(adapter.Protocol(p.Protocol)) {
 		req.Header.Set(k, v)
 	}
 	if profile, err := s.getDiagnosticProviderProfile(ctx, providerID); err == nil {
