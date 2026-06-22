@@ -38,6 +38,7 @@ type UpstreamTestInput struct {
 	UpstreamModel string `json:"upstream_model"`
 	Message       string `json:"message"`
 	TimeoutMs     int    `json:"timeout_ms"`
+	Stream        bool   `json:"stream"`
 }
 
 type GatewayTestInput struct {
@@ -47,11 +48,13 @@ type GatewayTestInput struct {
 	UpstreamModel  string `json:"upstream_model"`
 	Message        string `json:"message"`
 	TimeoutMs      int    `json:"timeout_ms"`
+	Stream         bool   `json:"stream"`
 }
 
 type DiagnosticResult struct {
 	OK              bool             `json:"ok"`
 	Mode            string           `json:"mode"`
+	RequestID       string           `json:"request_id,omitempty"`
 	ClientProtocol  string           `json:"client_protocol,omitempty"`
 	Alias           string           `json:"alias,omitempty"`
 	ProviderID      string           `json:"provider_id,omitempty"`
@@ -178,9 +181,13 @@ func diagnosticHTTPStatus(result DiagnosticResult) int {
 	return http.StatusOK
 }
 
+func newDiagnosticRequestID() string {
+	return fmt.Sprintf("admin-diagnostic-%d", time.Now().UnixNano())
+}
+
 func (d *Diagnostics) TestProviderUpstream(ctx context.Context, providerID string, in UpstreamTestInput) DiagnosticResult {
 	start := time.Now()
-	base := DiagnosticResult{Mode: "upstream", ProviderID: providerID, UpstreamModel: in.UpstreamModel}
+	base := DiagnosticResult{Mode: "upstream", RequestID: newDiagnosticRequestID(), ProviderID: providerID, UpstreamModel: in.UpstreamModel}
 	if d == nil || d.store == nil {
 		return diagnosticFailure("upstream", start, base, fmt.Errorf("admin diagnostics: %w", ErrValidation))
 	}
@@ -193,14 +200,17 @@ func (d *Diagnostics) TestProviderUpstream(ctx context.Context, providerID strin
 
 func (d *Diagnostics) testProviderUpstream(ctx context.Context, p *registry.Provider, in UpstreamTestInput) DiagnosticResult {
 	start := time.Now()
+	requestID := newDiagnosticRequestID()
 	if p == nil {
 		return diagnosticFailure("upstream", start, DiagnosticResult{
 			Mode:          "upstream",
+			RequestID:     requestID,
 			UpstreamModel: in.UpstreamModel,
 		}, ErrValidation)
 	}
 	base := DiagnosticResult{
 		Mode:          "upstream",
+		RequestID:     requestID,
 		ProviderID:    p.ID,
 		ProviderName:  p.Name,
 		Protocol:      string(p.Protocol),
@@ -223,7 +233,7 @@ func (d *Diagnostics) testProviderUpstream(ctx context.Context, p *registry.Prov
 	}
 	req.Model = in.UpstreamModel
 	req.Stream = false
-	req.ID = "admin-diagnostic"
+	req.ID = requestID
 	ch := &registry.Channel{Alias: in.UpstreamModel, Provider: p, UpstreamModel: in.UpstreamModel, Weight: 1}
 	callCtx, cancel := diagnosticTimeout(ctx, in.TimeoutMs)
 	defer cancel()
@@ -235,6 +245,7 @@ func (d *Diagnostics) testProviderUpstream(ctx context.Context, p *registry.Prov
 	return DiagnosticResult{
 		OK:              true,
 		Mode:            "upstream",
+		RequestID:       requestID,
 		ProviderID:      p.ID,
 		ProviderName:    p.Name,
 		Protocol:        string(p.Protocol),
@@ -249,8 +260,10 @@ func (d *Diagnostics) testProviderUpstream(ctx context.Context, p *registry.Prov
 
 func (d *Diagnostics) TestGatewayPath(ctx context.Context, in GatewayTestInput) DiagnosticResult {
 	start := time.Now()
+	requestID := newDiagnosticRequestID()
 	base := DiagnosticResult{
 		Mode:           "gateway",
+		RequestID:      requestID,
 		ClientProtocol: in.ClientProtocol,
 		Alias:          in.Alias,
 		ProviderID:     in.ProviderID,
@@ -278,7 +291,7 @@ func (d *Diagnostics) TestGatewayPath(ctx context.Context, in GatewayTestInput) 
 	if err != nil {
 		return diagnosticFailure("gateway", start, base, fmt.Errorf("decode_failed: %w", err))
 	}
-	req.ID = "admin-diagnostic"
+	req.ID = requestID
 	req.Model = in.Alias
 	req.Stream = false
 	callCtx, cancel := diagnosticTimeout(ctx, in.TimeoutMs)
@@ -293,7 +306,7 @@ func (d *Diagnostics) TestGatewayPath(ctx context.Context, in GatewayTestInput) 
 		if err != nil {
 			return diagnosticFailure("gateway", start, base, err)
 		}
-		return diagnosticSuccessGateway(start, proto, in.Alias, ch, resp)
+		return diagnosticSuccessGateway(start, requestID, proto, in.Alias, ch, resp)
 	}
 
 	resp, err := d.pipe.Run(callCtx, req)
@@ -303,6 +316,7 @@ func (d *Diagnostics) TestGatewayPath(ctx context.Context, in GatewayTestInput) 
 	return DiagnosticResult{
 		OK:              true,
 		Mode:            "gateway",
+		RequestID:       requestID,
 		ClientProtocol:  string(proto),
 		Alias:           in.Alias,
 		ProviderID:      resp.ProviderID,
@@ -332,7 +346,7 @@ func (d *Diagnostics) findForcedChannel(alias, providerID, upstreamModel string)
 	return nil, fmt.Errorf("admin diagnostics: %w: %s/%s", ErrNotFound, alias, providerID)
 }
 
-func diagnosticSuccessGateway(start time.Time, proto adapter.Protocol, alias string, ch *registry.Channel, resp *ir.UnifiedResponse) DiagnosticResult {
+func diagnosticSuccessGateway(start time.Time, requestID string, proto adapter.Protocol, alias string, ch *registry.Channel, resp *ir.UnifiedResponse) DiagnosticResult {
 	usage := resp.Usage
 	providerName := ""
 	providerID := resp.ProviderID
@@ -347,6 +361,7 @@ func diagnosticSuccessGateway(start time.Time, proto adapter.Protocol, alias str
 	return DiagnosticResult{
 		OK:              true,
 		Mode:            "gateway",
+		RequestID:       requestID,
 		ClientProtocol:  string(proto),
 		Alias:           alias,
 		ProviderID:      providerID,

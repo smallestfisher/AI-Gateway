@@ -91,6 +91,7 @@ export interface DiagnosticUsage {
 export interface DiagnosticResult {
   ok: boolean;
   mode: "upstream" | "gateway";
+  request_id?: string;
   client_protocol?: string;
   alias?: string;
   provider_id?: string;
@@ -109,6 +110,7 @@ export interface UpstreamTestInput {
   upstream_model: string;
   message?: string;
   timeout_ms?: number;
+  stream?: boolean;
 }
 
 export interface GatewayTestInput {
@@ -118,6 +120,7 @@ export interface GatewayTestInput {
   upstream_model?: string;
   message?: string;
   timeout_ms?: number;
+  stream?: boolean;
 }
 
 export type ProfileScope = "default" | "provider" | "model";

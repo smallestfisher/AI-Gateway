@@ -1,7 +1,9 @@
 "use client";
 
-import { CheckCircle2, XCircle } from "lucide-react";
+import { useState } from "react";
+import { CheckCircle2, Copy, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { DiagnosticResult } from "@/lib/types";
 
 export function DiagnosticResultView({
@@ -9,7 +11,16 @@ export function DiagnosticResultView({
 }: {
   result: DiagnosticResult | null;
 }) {
+  const [copied, setCopied] = useState(false);
+
   if (!result) return null;
+
+  async function copyRequestID() {
+    if (!result?.request_id) return;
+    await navigator.clipboard.writeText(result.request_id);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  }
 
   return (
     <div className="rounded-md border bg-background p-3 text-sm">
@@ -31,6 +42,26 @@ export function DiagnosticResultView({
       <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
         <dt className="text-muted-foreground">模式</dt>
         <dd className="font-mono">{result.mode}</dd>
+
+        {result.request_id && (
+          <>
+            <dt className="text-muted-foreground">请求 ID</dt>
+            <dd className="flex min-w-0 items-center gap-1">
+              <span className="min-w-0 break-all font-mono">
+                {result.request_id}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                onClick={copyRequestID}
+                aria-label="复制请求 ID"
+              >
+                <Copy className={copied ? "size-3 text-emerald-600" : "size-3"} />
+              </Button>
+            </dd>
+          </>
+        )}
 
         <dt className="text-muted-foreground">供应商</dt>
         <dd>{result.provider_name || result.provider_id || "-"}</dd>

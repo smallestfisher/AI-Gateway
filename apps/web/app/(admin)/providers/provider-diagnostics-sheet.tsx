@@ -4,6 +4,12 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2, RefreshCw, Send } from "lucide-react";
 import { toast } from "sonner";
+import {
+  clearDiagnosticHistory,
+  DiagnosticHistoryList,
+  readDiagnosticHistory,
+  storeDiagnosticHistory,
+} from "@/components/diagnostics/diagnostic-history";
 import { DiagnosticResultView } from "@/components/diagnostics/diagnostic-result";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +61,17 @@ export function ProviderDiagnosticsSheet({
   const [clientProtocol, setClientProtocol] = useState("openai_chat");
   const [channelKey, setChannelKey] = useState("");
   const [result, setResult] = useState<DiagnosticResult | null>(null);
+  const historyKey = providerId
+    ? `diagnostic-history:provider:${providerId}`
+    : "";
+  const [history, setHistory] = useState<DiagnosticResult[]>(() =>
+    readDiagnosticHistory(historyKey),
+  );
+
+  function remember(next: DiagnosticResult) {
+    setResult(next);
+    setHistory(storeDiagnosticHistory(historyKey, next));
+  }
 
   const upstreamModels = useQuery({
     queryKey: qk.upstreamModels(providerId),
@@ -83,14 +100,14 @@ export function ProviderDiagnosticsSheet({
   const direct = useMutation({
     mutationFn: (body: UpstreamTestInput) =>
       api.post<DiagnosticResult>(`/providers/${providerId}/test-upstream`, body),
-    onSuccess: setResult,
+    onSuccess: remember,
     onError: (e) => toast.error(e instanceof Error ? e.message : "测试失败"),
   });
 
   const gateway = useMutation({
     mutationFn: (body: GatewayTestInput) =>
       api.post<DiagnosticResult>("/test-gateway", body),
-    onSuccess: setResult,
+    onSuccess: remember,
     onError: (e) => toast.error(e instanceof Error ? e.message : "测试失败"),
   });
 
@@ -277,6 +294,12 @@ export function ProviderDiagnosticsSheet({
               经网关测试
             </Button>
           </section>
+
+          <DiagnosticHistoryList
+            history={history}
+            onSelect={setResult}
+            onClear={() => setHistory(clearDiagnosticHistory(historyKey))}
+          />
 
           <DiagnosticResultView result={result} />
         </div>

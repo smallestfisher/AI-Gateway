@@ -270,14 +270,14 @@ git commit -m "feat(web): add provider model sync"
 - Modify: `apps/web/components/diagnostics/gateway-test-sheet.tsx`
 - Modify: `apps/web/app/(admin)/providers/provider-diagnostics-sheet.tsx`
 
-- [ ] **Step 1: Add backend tests**
+- [x] **Step 1: Add backend tests**
 
 Add tests proving:
 
 - `DiagnosticResult.RequestID` is set for direct upstream and gateway tests.
 - Request IDs are stable non-empty strings and use the `admin-diagnostic-` prefix.
 
-- [ ] **Step 2: Implement request IDs**
+- [x] **Step 2: Implement request IDs**
 
 Add `RequestID string `json:"request_id"` to `DiagnosticResult`.
 
@@ -291,11 +291,11 @@ func newDiagnosticRequestID() string {
 
 Set `req.ID` and `DiagnosticResult.RequestID` from the same value.
 
-- [ ] **Step 3: Update frontend result view**
+- [x] **Step 3: Update frontend result view**
 
 Show request ID in `DiagnosticResultView` with a copyable monospace value.
 
-- [ ] **Step 4: Add local history helper**
+- [x] **Step 4: Add local history helper**
 
 In each diagnostic sheet, store successful and failed results in `localStorage` under keys:
 
@@ -306,7 +306,7 @@ diagnostic-history:channel:${alias}:${provider_id}:${upstream_model}
 
 Keep only the newest 20 results. Selecting a history row sets the current result.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 Run:
 
@@ -319,7 +319,7 @@ pnpm build
 
 Expected: PASS/exit 0, aside from existing frontend lint warning.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add internal/admin/diagnostics.go internal/admin/diagnostics_test.go apps/web/lib/types.ts apps/web/components/diagnostics/diagnostic-result.tsx apps/web/components/diagnostics/gateway-test-sheet.tsx 'apps/web/app/(admin)/providers/provider-diagnostics-sheet.tsx'

@@ -4,6 +4,12 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
+import {
+  clearDiagnosticHistory,
+  DiagnosticHistoryList,
+  readDiagnosticHistory,
+  storeDiagnosticHistory,
+} from "@/components/diagnostics/diagnostic-history";
 import { DiagnosticResultView } from "@/components/diagnostics/diagnostic-result";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,11 +53,23 @@ export function GatewayTestSheet({
   const [clientProtocol, setClientProtocol] = useState("openai_chat");
   const [message, setMessage] = useState("ping");
   const [result, setResult] = useState<DiagnosticResult | null>(null);
+  const historyKey =
+    alias && channel
+      ? `diagnostic-history:channel:${alias}:${channel.provider_id}:${channel.upstream_model}`
+      : "";
+  const [history, setHistory] = useState<DiagnosticResult[]>(() =>
+    readDiagnosticHistory(historyKey),
+  );
+
+  function remember(next: DiagnosticResult) {
+    setResult(next);
+    setHistory(storeDiagnosticHistory(historyKey, next));
+  }
 
   const test = useMutation({
     mutationFn: (body: GatewayTestInput) =>
       api.post<DiagnosticResult>("/test-gateway", body),
-    onSuccess: setResult,
+    onSuccess: remember,
     onError: (e) => toast.error(e instanceof Error ? e.message : "测试失败"),
   });
 
@@ -123,6 +141,12 @@ export function GatewayTestSheet({
             )}
             经网关测试
           </Button>
+
+          <DiagnosticHistoryList
+            history={history}
+            onSelect={setResult}
+            onClear={() => setHistory(clearDiagnosticHistory(historyKey))}
+          />
 
           <DiagnosticResultView result={result} />
         </div>

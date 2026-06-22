@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -86,6 +87,9 @@ func TestDiagnosticsDirectUpstreamUsesProviderProtocol(t *testing.T) {
 	if result.ResponsePreview != "pong" || result.Usage == nil || result.Usage.OutputTokens != 1 {
 		t.Fatalf("bad result: %+v", result)
 	}
+	if !strings.HasPrefix(result.RequestID, "admin-diagnostic-") {
+		t.Fatalf("request id = %q", result.RequestID)
+	}
 }
 
 func TestDiagnosticsGatewayForcedChannelUsesSelectedProvider(t *testing.T) {
@@ -126,6 +130,9 @@ func TestDiagnosticsGatewayForcedChannelUsesSelectedProvider(t *testing.T) {
 	}
 	if hitProvider != "b" || result.ProviderID != "pb" || result.ResponsePreview != "from-b" {
 		t.Fatalf("forced channel not used: hit=%s result=%+v", hitProvider, result)
+	}
+	if !strings.HasPrefix(result.RequestID, "admin-diagnostic-") {
+		t.Fatalf("request id = %q", result.RequestID)
 	}
 }
 
