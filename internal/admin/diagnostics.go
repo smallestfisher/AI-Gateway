@@ -13,6 +13,7 @@ import (
 	"github.com/aigateway/ai-hub/internal/egress"
 	"github.com/aigateway/ai-hub/internal/ir"
 	"github.com/aigateway/ai-hub/internal/pipeline"
+	"github.com/aigateway/ai-hub/internal/registry"
 )
 
 const diagnosticPreviewLimit = 240
@@ -175,4 +176,73 @@ func diagnosticHTTPStatus(result DiagnosticResult) int {
 		return http.StatusOK
 	}
 	return http.StatusOK
+}
+
+func (d *Diagnostics) TestProviderUpstream(ctx context.Context, providerID string, in UpstreamTestInput) DiagnosticResult {
+	start := time.Now()
+	base := DiagnosticResult{Mode: "upstream", ProviderID: providerID, UpstreamModel: in.UpstreamModel}
+	if d == nil || d.store == nil {
+		return diagnosticFailure("upstream", start, base, fmt.Errorf("admin diagnostics: %w", ErrValidation))
+	}
+	p, err := d.store.getDiagnosticProvider(ctx, providerID)
+	if err != nil {
+		return diagnosticFailure("upstream", start, base, err)
+	}
+	return d.testProviderUpstream(ctx, p, in)
+}
+
+func (d *Diagnostics) testProviderUpstream(ctx context.Context, p *registry.Provider, in UpstreamTestInput) DiagnosticResult {
+	start := time.Now()
+	if p == nil {
+		return diagnosticFailure("upstream", start, DiagnosticResult{
+			Mode:          "upstream",
+			UpstreamModel: in.UpstreamModel,
+		}, ErrValidation)
+	}
+	base := DiagnosticResult{
+		Mode:          "upstream",
+		ProviderID:    p.ID,
+		ProviderName:  p.Name,
+		Protocol:      string(p.Protocol),
+		UpstreamModel: in.UpstreamModel,
+	}
+	if d == nil || d.adapters == nil || d.eg == nil || strings.TrimSpace(in.UpstreamModel) == "" {
+		return diagnosticFailure("upstream", start, base, ErrValidation)
+	}
+	raw, err := buildDiagnosticWireRequest(p.Protocol, in.UpstreamModel, in.Message)
+	if err != nil {
+		return diagnosticFailure("upstream", start, base, err)
+	}
+	adp, ok := d.adapters.Get(p.Protocol)
+	if !ok {
+		return diagnosticFailure("upstream", start, base, fmt.Errorf("admin diagnostics: protocol_disabled: %s", p.Protocol))
+	}
+	req, err := adp.DecodeRequest(raw, nil)
+	if err != nil {
+		return diagnosticFailure("upstream", start, base, fmt.Errorf("decode_failed: %w", err))
+	}
+	req.Model = in.UpstreamModel
+	req.Stream = false
+	req.ID = "admin-diagnostic"
+	ch := &registry.Channel{Alias: in.UpstreamModel, Provider: p, UpstreamModel: in.UpstreamModel, Weight: 1}
+	callCtx, cancel := diagnosticTimeout(ctx, in.TimeoutMs)
+	defer cancel()
+	resp, err := d.eg.Send(callCtx, req, ch)
+	if err != nil {
+		return diagnosticFailure("upstream", start, base, err)
+	}
+	usage := resp.Usage
+	return DiagnosticResult{
+		OK:              true,
+		Mode:            "upstream",
+		ProviderID:      p.ID,
+		ProviderName:    p.Name,
+		Protocol:        string(p.Protocol),
+		UpstreamModel:   in.UpstreamModel,
+		LatencyMs:       int(time.Since(start).Milliseconds()),
+		HTTPStatus:      http.StatusOK,
+		StopReason:      string(resp.StopReason),
+		Usage:           &usage,
+		ResponsePreview: diagnosticPreview(resp, diagnosticPreviewLimit),
+	}
 }
